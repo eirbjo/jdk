@@ -500,6 +500,69 @@ public final class StackWalker {
     }
 
     /**
+     * Applies the given function to the stream of {@code StackFrame}s
+     * for the current thread, traversing from the top frame of the stack,
+     * which is the method calling this {@code walk} method.
+     *
+     * <p>The {@code StackFrame} stream will be closed when
+     * this method returns.  When a closed {@code Stream<StackFrame>} object
+     * is reused, {@code IllegalStateException} will be thrown.
+     *
+     * @apiNote
+     * For example, to find the first 10 calling frames, first skipping those frames
+     * whose declaring class is in package {@code com.foo}:
+     * <blockquote>
+     * <pre>{@code
+     * List<StackFrame> frames = StackWalker.getInstance().walk(s ->
+     *     s.dropWhile(f -> f.getClassName().startsWith("com.foo."))
+     *      .limit(10)
+     *      .collect(Collectors.toList()));
+     * }</pre></blockquote>
+     *
+     * <p>This method takes a {@code Function} accepting a {@code Stream<StackFrame>},
+     * rather than returning a {@code Stream<StackFrame>} and allowing the
+     * caller to directly manipulate the stream. The Java virtual machine is
+     * free to reorganize a thread's control stack, for example, via
+     * deoptimization. By taking a {@code Function} parameter, this method
+     * allows access to stack frames through a stable view of a thread's control
+     * stack.
+     *
+     * <p>Parallel execution is effectively disabled and stream pipeline
+     * execution will only occur on the current thread.
+     *
+     * @implNote The implementation stabilizes the stack by anchoring a frame
+     * specific to the stack walking and ensures that the stack walking is
+     * performed above the anchored frame. When the stream object is closed or
+     * being reused, {@code IllegalStateException} will be thrown.
+     *
+     * @param throwable the Throwable instace to walk the backtrace for
+     * @param function a function that takes a stream of
+     *                 {@linkplain StackFrame stack frames} and returns a result.
+     * @param <T> The type of the result of applying the function to the
+     *            stream of {@linkplain StackFrame stack frame}.
+     *
+     *
+     * @return the result of applying the function to the stream of
+     *         {@linkplain StackFrame stack frame}.
+     */
+    @CallerSensitive
+    public <T> T walk(Throwable throwable, Function<? super Stream<StackFrame>, ? extends T> function) {
+        // Returning a Stream<StackFrame> would be unsafe, as the stream could
+        // be used to access the stack frames in an uncontrolled manner.  For
+        // example, a caller might pass a Spliterator of stack frames after one
+        // or more frames had been traversed. There is no robust way to detect
+        // whether the execution point when
+        // Spliterator.tryAdvance(java.util.function.Consumer<? super T>) is
+        // invoked is the exact same execution point where the stack frame
+        // traversal is expected to resume.
+
+        Objects.requireNonNull(function);
+        Objects.requireNonNull(throwable);
+        return StackStreamFactory.makeStackTraverser(this, throwable, function)
+                .walk();
+    }
+
+    /**
      * Performs the given action on each element of {@code StackFrame} stream
      * of the current thread, traversing from the top frame of the stack,
      * which is the method calling this {@code forEach} method.

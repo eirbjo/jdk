@@ -364,6 +364,61 @@ oop StackWalk::walk(Handle stackStream, jlong mode,
   }
 }
 
+
+oop StackWalk::walkThrowable(Handle throwable, Handle stackStream, jlong mode,
+                    int skip_frames, int frame_count, int start_index,
+                    objArrayHandle frames_array,
+                    TRAPS) {
+  ResourceMark rm(THREAD);
+  JavaThread* jt = THREAD;
+  log_debug(stackwalk)("Start walking: mode " JLONG_FORMAT " skip %d frames batch size %d",
+                       mode, skip_frames, frame_count);
+
+  if (frames_array.is_null()) {
+    THROW_MSG_(vmSymbols::java_lang_NullPointerException(), "frames_array is NULL", NULL);
+  }
+
+
+  JavaFrameStream stream(jt, mode);
+  return fetchFirstBatchThrowable(stream, throwable, stackStream, mode, skip_frames, frame_count,
+                       start_index, frames_array, THREAD);
+}
+
+oop StackWalk::fetchFirstBatchThrowable(BaseFrameStream& stream, Handle throwable, Handle stackStream,
+                               jlong mode, int skip_frames, int frame_count,
+                               int start_index, objArrayHandle frames_array, TRAPS) {
+  methodHandle m_doStackWalk(THREAD, Universe::do_stack_walk_method());
+
+  int end_index = start_index;
+
+
+  int numFrames = java_lang_Throwable::fill_in_frames(throwable, frame_count, start_index,
+                                 frames_array, end_index, CHECK_NULL);
+
+
+  // JVM_CallStackWalk walks the stack and fills in stack frames, then calls to
+  // Java method java.lang.StackStreamFactory.AbstractStackWalker::doStackWalk
+  // which calls the implementation to consume the stack frames.
+  // When JVM_CallStackWalk returns, it invalidates the stack stream.
+  JavaValue result(T_OBJECT);
+  JavaCallArguments args(stackStream);
+  args.push_long(42);
+  args.push_int(skip_frames);
+  args.push_int(frame_count);
+  args.push_int(start_index);
+  args.push_int(end_index);
+
+
+  JavaCalls::call(&result, m_doStackWalk, &args, THREAD);
+
+
+  // Throw pending exception if we must
+  (void) (CHECK_NULL);
+
+  // Return normally
+  return result.get_oop();
+}
+
 oop StackWalk::fetchFirstBatch(BaseFrameStream& stream, Handle stackStream,
                                jlong mode, int skip_frames, int frame_count,
                                int start_index, objArrayHandle frames_array, TRAPS) {

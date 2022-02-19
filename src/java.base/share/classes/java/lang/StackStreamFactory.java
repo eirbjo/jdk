@@ -85,12 +85,17 @@ final class StackStreamFactory {
             "true".equals(GetPropertyAction.privilegedGetProperty("stackwalk.debug"));
 
     static <T> StackFrameTraverser<T>
-        makeStackTraverser(StackWalker walker, Function<? super Stream<StackFrame>, ? extends T> function)
+    makeStackTraverser(StackWalker walker, Function<? super Stream<StackFrame>, ? extends T> function)
+    {
+        return makeStackTraverser(walker, null, function);
+    }
+    static <T> StackFrameTraverser<T>
+        makeStackTraverser(StackWalker walker, Throwable throwable, Function<? super Stream<StackFrame>, ? extends T> function)
     {
         if (walker.hasLocalsOperandsOption())
             return new LiveStackInfoTraverser<>(walker, function);
         else
-            return new StackFrameTraverser<>(walker, function);
+            return new StackFrameTraverser<>(walker, throwable, function);
     }
 
     /**
@@ -121,6 +126,7 @@ final class StackStreamFactory {
     abstract static class AbstractStackWalker<R, T> {
         protected final StackWalker walker;
         protected final Thread thread;
+        protected final Throwable throwable;
         protected final int maxDepth;
         protected final long mode;
         protected int depth;    // traversed stack depth
@@ -129,10 +135,14 @@ final class StackStreamFactory {
 
         // buffers to fill in stack frame information
         protected AbstractStackWalker(StackWalker walker, int mode) {
-            this(walker, mode, Integer.MAX_VALUE);
+            this(walker, null, mode, Integer.MAX_VALUE);
         }
-        protected AbstractStackWalker(StackWalker walker, int mode, int maxDepth) {
+        protected AbstractStackWalker(StackWalker walker, Throwable throwable, int mode) {
+            this(walker, throwable, mode, Integer.MAX_VALUE);
+        }
+        protected AbstractStackWalker(StackWalker walker, Throwable throwable, int mode, int maxDepth) {
             this.thread = Thread.currentThread();
+            this.throwable = throwable;
             this.mode = toStackWalkMode(walker, mode);
             this.walker = walker;
             this.maxDepth = maxDepth;
@@ -367,7 +377,7 @@ final class StackStreamFactory {
             // initialize buffers for VM to fill the stack frame info
             initFrameBuffer();
 
-            return callStackWalk(mode, 0,
+            return callStackWalk(throwable, mode, 0,
                                  frameBuffer.curBatchFrameCount(),
                                  frameBuffer.startIndex(),
                                  frameBuffer.frames());
@@ -383,7 +393,7 @@ final class StackStreamFactory {
             int startIndex = frameBuffer.startIndex();
             frameBuffer.resize(startIndex, batchSize);
 
-            int endIndex = fetchStackFrames(mode, anchor, batchSize,
+            int endIndex = fetchStackFrames(throwable, mode, anchor, batchSize,
                                             startIndex,
                                             frameBuffer.frames());
             if (isDebug) {
@@ -411,7 +421,7 @@ final class StackStreamFactory {
          *                    or a {@link StackFrameInfo} (or derivative) array otherwise.
          * @return            Result of AbstractStackWalker::doStackWalk
          */
-        private native R callStackWalk(long mode, int skipframes,
+        private native R callStackWalk(Throwable throwable, long mode, int skipframes,
                                        int batchSize, int startIndex,
                                        T[] frames);
 
@@ -427,7 +437,7 @@ final class StackStreamFactory {
          *
          * @return the end index to the frame buffers
          */
-        private native int fetchStackFrames(long mode, long anchor,
+        private native int fetchStackFrames(Throwable throwable, long mode, long anchor,
                                             int batchSize, int startIndex,
                                             T[] frames);
     }
@@ -501,14 +511,18 @@ final class StackStreamFactory {
 
         final Function<? super Stream<StackFrame>, ? extends T> function;  // callback
 
+
+
         StackFrameTraverser(StackWalker walker,
+                            Throwable throwable,
                             Function<? super Stream<StackFrame>, ? extends T> function) {
-            this(walker, function, DEFAULT_MODE);
+            this(walker, throwable, function, DEFAULT_MODE);
         }
         StackFrameTraverser(StackWalker walker,
+                            Throwable throwable,
                             Function<? super Stream<StackFrame>, ? extends T> function,
                             int mode) {
-            super(walker, mode);
+            super(walker, throwable, mode);
             this.function = function;
         }
 
@@ -769,7 +783,7 @@ final class StackStreamFactory {
 
         LiveStackInfoTraverser(StackWalker walker,
                                Function<? super Stream<StackFrame>, ? extends T> function) {
-            super(walker, function, DEFAULT_MODE);
+            super(walker, null, function, DEFAULT_MODE);
         }
 
         @Override

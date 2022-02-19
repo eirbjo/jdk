@@ -55,10 +55,10 @@ JNIEXPORT jboolean JNICALL Java_java_lang_StackStreamFactory_checkStackWalkModes
  * Signature: (JIII[Ljava/lang/Object;)Ljava/lang/Object;
  */
 JNIEXPORT jobject JNICALL Java_java_lang_StackStreamFactory_00024AbstractStackWalker_callStackWalk
-  (JNIEnv *env, jobject stackstream, jlong mode, jint skipFrames, jint batchSize, jint startIndex,
+  (JNIEnv *env, jobject stackstream, jobject throwable, jlong mode, jint skipFrames, jint batchSize, jint startIndex,
    jobjectArray frames)
 {
-    return JVM_CallStackWalk(env, stackstream, mode, skipFrames, batchSize,
+    return JVM_CallStackWalk(env, stackstream, throwable, mode, skipFrames, batchSize,
                              startIndex, frames);
 }
 
@@ -68,10 +68,10 @@ JNIEXPORT jobject JNICALL Java_java_lang_StackStreamFactory_00024AbstractStackWa
  * Signature: (JJII[Ljava/lang/Object;)I
  */
 JNIEXPORT jint JNICALL Java_java_lang_StackStreamFactory_00024AbstractStackWalker_fetchStackFrames
-  (JNIEnv *env, jobject stackstream, jlong mode, jlong anchor,
+  (JNIEnv *env, jobject stackstream, jobject throwable, jlong mode, jlong anchor,
    jint batchSize, jint startIndex,
    jobjectArray frames)
 {
-    return JVM_MoreStackWalk(env, stackstream, mode, anchor, batchSize,
+    return JVM_MoreStackWalk(env, stackstream, throwable, mode, anchor, batchSize,
                              startIndex, frames);
 }

@@ -88,6 +88,9 @@ public final class StackTraceElement implements java.io.Serializable {
      * The source line number.
      */
     private int    lineNumber;
+
+    private int bci;
+
     /**
      * Control to show full or partial module, package, and class names.
      */
@@ -201,6 +204,23 @@ public final class StackTraceElement implements java.io.Serializable {
     public int getLineNumber() {
         return lineNumber;
     }
+
+    /**
+     * Returns the index to the code array of the {@code Code} attribute
+     * containing the execution point represented by this stack frame.
+     * The code array gives the actual bytes of Java Virtual Machine code
+     * that implement the method.
+     *
+     * @return the index to the code array of the {@code Code} attribute
+     *         containing the execution point represented by this stack frame,
+     *         or a negative number if the method is native.
+     *
+     * @jvms 4.7.3 The {@code Code} Attribute
+     */
+    public int getByteCodeIndex() {
+        return bci;
+    }
+
 
     /**
      * Returns the module name of the module containing the execution point

@@ -150,6 +150,15 @@ public:
                   objArrayHandle frames_array,
                   TRAPS);
 
+  static oop walkThrowable(Handle throwable, Handle stackStream, jlong mode,
+                    int skip_frames, int frame_count, int start_index,
+                    objArrayHandle frames_array,
+                    TRAPS);
+
+  static oop fetchFirstBatchThrowable(BaseFrameStream& stream, Handle throwable, Handle stackStream,
+                             jlong mode, int skip_frames, int frame_count,
+                             int start_index, objArrayHandle frames_array, TRAPS);
+
   static oop fetchFirstBatch(BaseFrameStream& stream, Handle stackStream,
                              jlong mode, int skip_frames, int frame_count,
                              int start_index, objArrayHandle frames_array, TRAPS);

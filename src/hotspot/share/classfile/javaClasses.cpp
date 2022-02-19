@@ -2642,6 +2642,38 @@ void java_lang_Throwable::get_stack_trace_elements(Handle throwable,
   }
 }
 
+int java_lang_Throwable::fill_in_frames(Handle throwable,
+                                                   int max_nframes, int start_index,
+                                                   objArrayHandle frames_array,
+                                                   int& end_index, TRAPS) {
+
+
+  assert(frames_array->is_objArray(), "Stack trace array should be an array of StackTraceElenent");
+
+  objArrayHandle result(THREAD, objArrayOop(backtrace(throwable())));
+  BacktraceIterator iter(result, THREAD);
+
+
+  int frames_decoded = 0;
+
+  while (iter.repeat()) {
+    BacktraceElement bte = iter.next(THREAD);
+
+    InstanceKlass* holder = InstanceKlass::cast(java_lang_Class::as_Klass(bte._mirror()));
+    methodHandle method (THREAD, holder->method_with_orig_idnum(bte._method_id, bte._version));
+
+    int index = end_index++;
+
+    HandleMark hm(THREAD);
+    Handle stackFrame(THREAD, frames_array->obj_at(index));
+
+    java_lang_StackFrameInfo::set_method_and_bci(stackFrame, method, bte._bci, THREAD);
+    if (++frames_decoded >= max_nframes)  break;
+  }
+
+  return frames_decoded;
+}
+
 Handle java_lang_Throwable::get_cause_with_stack_trace(Handle throwable, TRAPS) {
   // Call to JVM to fill in the stack trace and clear declaringClassObject to
   // not keep classes alive in the stack trace.
@@ -2784,6 +2816,7 @@ void java_lang_StackTraceElement::fill_in(Handle element,
 
     java_lang_StackTraceElement::set_fileName(element(), source_file);
     java_lang_StackTraceElement::set_lineNumber(element(), line_number);
+    java_lang_StackTraceElement::set_bci(element(), bci);
   }
 }
 
@@ -4517,6 +4550,7 @@ void jdk_internal_misc_UnsafeConstants::set_unsafe_constants() {
 int java_lang_StackTraceElement::_methodName_offset;
 int java_lang_StackTraceElement::_fileName_offset;
 int java_lang_StackTraceElement::_lineNumber_offset;
+int java_lang_StackTraceElement::_bci_offset;
 int java_lang_StackTraceElement::_moduleName_offset;
 int java_lang_StackTraceElement::_moduleVersion_offset;
 int java_lang_StackTraceElement::_classLoaderName_offset;
@@ -4531,7 +4565,8 @@ int java_lang_StackTraceElement::_declaringClassObject_offset;
   macro(_declaringClass_offset,  k, "declaringClass",  string_signature, false); \
   macro(_methodName_offset,      k, "methodName",      string_signature, false); \
   macro(_fileName_offset,        k, "fileName",        string_signature, false); \
-  macro(_lineNumber_offset,      k, "lineNumber",      int_signature,    false)
+  macro(_lineNumber_offset,      k, "lineNumber",      int_signature,    false); \
+  macro(_bci_offset,             k, "bci",             int_signature,    false)
 
 // Support for java_lang_StackTraceElement
 void java_lang_StackTraceElement::compute_offsets() {
@@ -4559,6 +4594,10 @@ void java_lang_StackTraceElement::set_methodName(oop element, oop value) {
 
 void java_lang_StackTraceElement::set_lineNumber(oop element, int value) {
   element->int_field_put(_lineNumber_offset, value);
+}
+
+void java_lang_StackTraceElement::set_bci(oop element, int value) {
+  element->int_field_put(_bci_offset, value);
 }
 
 void java_lang_StackTraceElement::set_moduleName(oop element, oop value) {

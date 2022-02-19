@@ -562,6 +562,8 @@ class java_lang_Throwable: AllStatic {
   static void fill_in_stack_trace(Handle throwable, const methodHandle& method = methodHandle());
   // Programmatic access to stack trace
   static void get_stack_trace_elements(Handle throwable, objArrayHandle stack_trace, TRAPS);
+  static int fill_in_frames(Handle throwable, int max_nframes, int start_index,
+                                              objArrayHandle frames_array, int& end_index, TRAPS);
 
   // For recreating class initialization error exceptions.
   static Handle get_cause_with_stack_trace(Handle throwable, TRAPS);
@@ -1425,6 +1427,7 @@ class java_lang_StackTraceElement: AllStatic {
   static int _methodName_offset;
   static int _fileName_offset;
   static int _lineNumber_offset;
+  static int _bci_offset;
 
   // Setters
   static void set_classLoaderName(oop element, oop value);
@@ -1434,6 +1437,7 @@ class java_lang_StackTraceElement: AllStatic {
   static void set_methodName(oop element, oop value);
   static void set_fileName(oop element, oop value);
   static void set_lineNumber(oop element, int value);
+  static void set_bci(oop element, int value);
   static void set_declaringClassObject(oop element, oop value);
 
   static void decode_file_and_line(Handle java_mirror, InstanceKlass* holder, int version,

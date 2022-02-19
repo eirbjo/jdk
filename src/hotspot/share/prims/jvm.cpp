@@ -551,7 +551,7 @@ JVM_END
 // java.lang.StackWalker //////////////////////////////////////////////////////
 
 
-JVM_ENTRY(jobject, JVM_CallStackWalk(JNIEnv *env, jobject stackStream, jlong mode,
+JVM_ENTRY(jobject, JVM_CallStackWalk(JNIEnv *env, jobject stackStream, jobject throwable, jlong mode,
                                      jint skip_frames, jint frame_count, jint start_index,
                                      jobjectArray frames))
   if (!thread->has_last_Java_frame()) {
@@ -559,6 +559,8 @@ JVM_ENTRY(jobject, JVM_CallStackWalk(JNIEnv *env, jobject stackStream, jlong mod
   }
 
   Handle stackStream_h(THREAD, JNIHandles::resolve_non_null(stackStream));
+
+  Handle exception(THREAD, JNIHandles::resolve(throwable));
 
   // frames array is a Class<?>[] array when only getting caller reference,
   // and a StackFrameInfo[] array (or derivative) otherwise. It should never
@@ -571,13 +573,19 @@ JVM_ENTRY(jobject, JVM_CallStackWalk(JNIEnv *env, jobject stackStream, jlong mod
     THROW_MSG_(vmSymbols::java_lang_IllegalArgumentException(), "not enough space in buffers", NULL);
   }
 
-  oop result = StackWalk::walk(stackStream_h, mode, skip_frames, frame_count,
+  if(!exception.is_null()) {
+    oop result = StackWalk::walkThrowable(exception, stackStream_h, mode, skip_frames, frame_count,
+                                   start_index, frames_array_h, CHECK_NULL);
+    return JNIHandles::make_local(THREAD, result);
+  } else {
+    oop result = StackWalk::walk(stackStream_h, mode, skip_frames, frame_count,
                                start_index, frames_array_h, CHECK_NULL);
-  return JNIHandles::make_local(THREAD, result);
+    return JNIHandles::make_local(THREAD, result);
+  }
 JVM_END
 
 
-JVM_ENTRY(jint, JVM_MoreStackWalk(JNIEnv *env, jobject stackStream, jlong mode, jlong anchor,
+JVM_ENTRY(jint, JVM_MoreStackWalk(JNIEnv *env, jobject stackStream, jobject throwable, jlong mode, jlong anchor,
                                   jint frame_count, jint start_index,
                                   jobjectArray frames))
   // frames array is a Class<?>[] array when only getting caller reference,
