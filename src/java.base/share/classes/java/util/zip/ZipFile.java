@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1995, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1356,7 +1356,12 @@ public class ZipFile implements ZipConstants, Closeable {
             metaVersions = EMPTY_META_VERSIONS;
         }
 
-        private static final int BUF_SIZE = 8192;
+        private static final int RAF_BUF_THRESHOLD = 8192;
+        /**
+         * RAF_BUF_THRESHOLD is the threshold at which RandomAccessFile
+         * spills into a temporary malloc'ed buffer for the I/O operation.
+         * Let's limit our reads to chucks of this size.
+         */
         private final int readFullyAt(byte[] buf, int off, int len, long pos)
             throws IOException
         {
@@ -1364,7 +1369,7 @@ public class ZipFile implements ZipConstants, Closeable {
                 zfile.seek(pos);
                 int N = len;
                 while (N > 0) {
-                    int n = Math.min(BUF_SIZE, N);
+                    int n = Math.min(RAF_BUF_THRESHOLD, N);
                     zfile.readFully(buf, off, n);
                     off += n;
                     N -= n;
