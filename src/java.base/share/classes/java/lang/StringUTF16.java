@@ -1064,6 +1064,23 @@ final class StringUTF16 {
         return (right != length) ? newString(value, 0, right) : null;
     }
 
+    public static int mismatchLatin1(byte[] ua, int uFromIndex, int uToIndex, byte[] la, int lFromIndex, int lToIndex) {
+
+        int uo = uFromIndex, lo = lFromIndex;
+
+        for (; uo < uToIndex && lo < lToIndex; uo++, lo++) {
+            if (StringUTF16.getChar(ua, uo) != (la[lo] & 0xff)) {
+                return uo-uFromIndex;
+            }
+        }
+        if (uo == uToIndex && lo == lToIndex) {
+            return -1; // Both strings fully consumed
+        }
+        int ulen = uToIndex - uFromIndex;
+        int llen = lToIndex - lFromIndex;
+        return Math.min(ulen, llen);
+    }
+
     private static final class LinesSpliterator implements Spliterator<String> {
         private byte[] value;
         private int index;        // current index, modified on advance/split

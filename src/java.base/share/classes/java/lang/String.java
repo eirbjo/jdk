@@ -1840,7 +1840,7 @@ public final class String
         }
         return (anObject instanceof String aString)
                 && (!COMPACT_STRINGS || this.coder == aString.coder)
-                && StringLatin1.equals(value, aString.value);
+                && Arrays.equals(value, aString.value);
     }
 
     /**
@@ -2024,16 +2024,49 @@ public final class String
      *          lexicographically greater than the string argument.
      */
     public int compareTo(String anotherString) {
-        byte v1[] = value;
-        byte v2[] = anotherString.value;
+        byte[] tv = value;
+        byte[] av = anotherString.value;
         byte coder = coder();
-        if (coder == anotherString.coder()) {
-            return coder == LATIN1 ? StringLatin1.compareTo(v1, v2)
-                                   : StringUTF16.compareTo(v1, v2);
+        switch (coder - anotherString.coder()) {
+            case -1: // LU
+                return -compareToUL(av, tv);
+            case 0: // LL or UU
+                return compareToSameCoder(tv, av, coder);
+            default: // UL
+                return compareToUL(tv, av);
         }
-        return coder == LATIN1 ? StringLatin1.compareToUTF16(v1, v2)
-                               : StringUTF16.compareToLatin1(v1, v2);
      }
+
+    private static int compareToSameCoder(byte[] tv, byte[] av, byte coder) {
+        int mismatch = Arrays.mismatch(tv, av);
+        if (mismatch == -1) {
+            return 0;
+        }
+        int tlen = tv.length >> coder;
+        int alen = av.length >> coder;
+
+        if (mismatch >> coder == Math.min(tlen, alen)) {
+            return tlen - alen;
+        } else if (coder == LATIN1) {
+            return tv[mismatch] - av[mismatch];
+        } else {
+            return StringUTF16.getChar(tv, mismatch >> 1) -
+                    StringUTF16.getChar(av, mismatch >> 1);
+        }
+    }
+
+    private static int compareToUL(byte[] uv, byte[] lv) {
+        int ulen = uv.length >> 1;
+        int llen = lv.length;
+
+        int mismatch = StringUTF16.mismatchLatin1(uv, 0, ulen, lv, 0, llen);
+
+        if (mismatch == Math.min(ulen, llen)) {
+            return ulen - llen;
+        } else {
+            return StringUTF16.getChar(uv, mismatch) - (lv[mismatch] & 0xFF);
+        }
+    }
 
     /**
      * A Comparator that orders {@code String} objects as by
@@ -2136,44 +2169,17 @@ public final class String
      *          {@code false} otherwise.
      */
     public boolean regionMatches(int toffset, String other, int ooffset, int len) {
-        byte tv[] = value;
-        byte ov[] = other.value;
+
         // Note: toffset, ooffset, or len might be near -1>>>1.
         if ((ooffset < 0) || (toffset < 0) ||
              (toffset > (long)length() - len) ||
              (ooffset > (long)other.length() - len)) {
             return false;
         }
-        byte coder = coder();
-        if (coder == other.coder()) {
-            if (!isLatin1() && (len > 0)) {
-                toffset = toffset << 1;
-                ooffset = ooffset << 1;
-                len = len << 1;
-            }
-            while (len-- > 0) {
-                if (tv[toffset++] != ov[ooffset++]) {
-                    return false;
-                }
-            }
-        } else {
-            if (coder == LATIN1) {
-                while (len-- > 0) {
-                    if (StringLatin1.getChar(tv, toffset++) !=
-                        StringUTF16.getChar(ov, ooffset++)) {
-                        return false;
-                    }
-                }
-            } else {
-                while (len-- > 0) {
-                    if (StringUTF16.getChar(tv, toffset++) !=
-                        StringLatin1.getChar(ov, ooffset++)) {
-                        return false;
-                    }
-                }
-            }
+        if (len < 0) {
+            return true;
         }
-        return true;
+        return mismatch(toffset, toffset + len, other, ooffset, ooffset + len) == -1;
     }
 
     /**
@@ -2270,30 +2276,10 @@ public final class String
         if (toffset < 0 || toffset > length() - prefix.length()) {
             return false;
         }
-        byte ta[] = value;
-        byte pa[] = prefix.value;
-        int po = 0;
-        int pc = pa.length;
-        byte coder = coder();
-        if (coder == prefix.coder()) {
-            int to = (coder == LATIN1) ? toffset : toffset << 1;
-            while (po < pc) {
-                if (ta[to++] != pa[po++]) {
-                    return false;
-                }
-            }
-        } else {
-            if (coder == LATIN1) {  // && pcoder == UTF16
-                return false;
-            }
-            // coder == UTF16 && pcoder == LATIN1)
-            while (po < pc) {
-                if (StringUTF16.getChar(ta, toffset++) != (pa[po++] & 0xff)) {
-                    return false;
-               }
-            }
-        }
-        return true;
+
+        int mismatch = mismatch(toffset, length(), prefix, 0, prefix.length());
+
+        return mismatch == -1 || mismatch == prefix.length();
     }
 
     /**
@@ -2311,6 +2297,84 @@ public final class String
      */
     public boolean startsWith(String prefix) {
         return startsWith(prefix, 0);
+    }
+
+    /**
+     * Finds and returns the relative index of the first mismatch between this
+     * string and the specified string over the specified ranges, otherwise return -1 if
+     * no mismatch is found.  The index will be in the range of 0 (inclusive) up
+     * to the length (inclusive) of the smaller string.
+     *
+     * <p>If the two strings, over the specified ranges, share a common prefix
+     * then the returned relative index is the length of the common prefix and
+     * it follows that there is a mismatch between the two elements at that
+     * relative index within the respective strings.
+     * If one string is a proper prefix of the other, over the specified ranges,
+     * then the returned relative index is the length of the smaller range and
+     * it follows that the relative index is only valid for the string with the
+     * larger range.
+     * Otherwise, there is no mismatch.
+     *
+     * <p>Two non-{@code null} strings, {@code a} and {@code b} with specified
+     * ranges [{@code aFromIndex}, {@code aToIndex}) and
+     * [{@code bFromIndex}, {@code bToIndex}) respectively, share a common
+     * prefix of length {@code pl} if the following expression is true:
+     * <pre>{@code
+     *     pl >= 0 &&
+     *     pl < Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex) &&
+     *     Arrays.equals(a, aFromIndex, aFromIndex + pl, b, bFromIndex, bFromIndex + pl) &&
+     *     a[aFromIndex + pl] != b[bFromIndex + pl]
+     * }</pre>
+     * Note that a common prefix length of {@code 0} indicates that the first
+     * elements from each array mismatch.
+     *
+     * <p>Two non-{@code null} arrays, {@code a} and {@code b} with specified
+     * ranges [{@code aFromIndex}, {@code aToIndex}) and
+     * [{@code bFromIndex}, {@code bToIndex}) respectively, share a proper
+     * prefix if the following expression is true:
+     * <pre>{@code
+     *     (aToIndex - aFromIndex) != (bToIndex - bFromIndex) &&
+     *     Arrays.equals(a, 0, Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex),
+     *                   b, 0, Math.min(aToIndex - aFromIndex, bToIndex - bFromIndex))
+     * }</pre>
+     *
+     * @param fromIndex the index (inclusive) of the first element in this string
+     *                  to be tested
+     * @param toIndex the index (exclusive) of the last element in this string
+     *                 to be tested
+     * @param other the second string to be tested for a mismatch
+     * @param oFromIndex the index (inclusive) of the first element in the
+     *                   second string to be tested
+     * @param oToIndex the index (exclusive) of the last element in the
+     *                 second string to be tested
+     * @return the relative index of the first mismatch between the two arrays
+     *         over the specified ranges, otherwise {@code -1}.
+     * @throws IllegalArgumentException
+     *         if {@code aFromIndex > aToIndex} or
+     *         if {@code bFromIndex > bToIndex}
+     * @throws ArrayIndexOutOfBoundsException
+     *         if {@code aFromIndex < 0 or aToIndex > a.length} or
+     *         if {@code bFromIndex < 0 or bToIndex > b.length}
+     * @throws NullPointerException
+     *         if either array is {@code null}
+     * @since 9
+     */
+    public int mismatch(int fromIndex, int toIndex, String other, int oFromIndex, int oToIndex) {
+        byte[] ta = value;
+        byte[] oa = other.value;
+        byte coder = coder();
+
+        switch ( coder << 1 | other.coder()) {
+            case 0b00: // LL
+                return Arrays.mismatch(ta, fromIndex, toIndex, oa, oFromIndex, oToIndex);
+            case 0b01: // LU
+                return StringUTF16.mismatchLatin1(oa, oFromIndex, oToIndex, ta, fromIndex, toIndex);
+            case 0b10: // UL
+                return StringUTF16.mismatchLatin1(ta, fromIndex, toIndex, oa, oFromIndex, oToIndex);
+            default: // UU
+                int mismatch = Arrays.mismatch(ta, fromIndex << 1, toIndex << 1, oa, oFromIndex << 1, oToIndex << 1);
+                return mismatch == -1 ? -1 : mismatch >> 1;
+        }
     }
 
     /**
