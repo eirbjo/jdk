@@ -159,7 +159,7 @@ public class ZinkSamples {
     @Test
     public void shouldRejectInvalidLocSig() throws IOException {
 
-        // Make the extra length in the LOC overflow into the next File data
+        // Replace the LOC sig with an invalid one
         Path zip = Zink.stream(twoEntryZip())
                 .map(Loc.named("entry1", loc -> loc.sig(0xCAFEBABE)))
                 .collect(Zink.toFile("invalid-loc-sig.zip"));
@@ -177,6 +177,29 @@ public class ZinkSamples {
             }
         });
         assertEquals(ex.getMessage(), "ZipFile invalid LOC header (bad signature)");
+    }
+
+    @Test
+    public void shouldRejectInvalidCenSig() throws IOException {
+
+        // Replace the CEN sig with an invalid one
+        Path zip = Zink.stream(twoEntryZip())
+                .map(Cen.named("entry1", cen -> cen.sig(0xCAFEBABE)))
+                .collect(Zink.toFile("invalid-cen-sig.zip"));
+
+        // Check ZipFile
+        ZipException ex = expectThrows(ZipException.class, () -> {
+            try (ZipFile zf = new ZipFile(zip.toFile())) {
+                Enumeration<? extends ZipEntry> entries = zf.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    try (InputStream in = zf.getInputStream(entry)) {
+                        in.transferTo(OutputStream.nullOutputStream());
+                    }
+                }
+            }
+        });
+        assertEquals(ex.getMessage(), "invalid CEN header (bad signature)");
     }
 
     private static byte[] twoEntryZip() throws IOException {

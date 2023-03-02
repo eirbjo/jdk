@@ -140,7 +140,8 @@ public class ZinkTests {
                             .csize(desc.csize())
                             .size(desc.size())
                             .crc(desc.crc());
-                    case Cen cen -> cen.version(cen.version())
+                    case Cen cen -> cen.sig(cen.sig())
+                            .version(cen.version())
                             .extractVersion(cen.extractVersion())
                             .flags(cen.flags())
                             .method(cen.method())
