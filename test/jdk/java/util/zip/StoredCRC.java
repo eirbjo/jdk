@@ -25,85 +25,83 @@
  * @test
  * @bug 4879507
  * @summary ZipInputStream does not check CRC for stored (uncompressed) files
+ * @enablePreview true
+ * @library /test/lib
  * @author Dave Bristor
  */
 
-import java.io.*;
-import java.util.Arrays;
+import jdk.test.lib.zink.FileData;
+import jdk.test.lib.zink.Zink;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
 import java.util.zip.*;
 
 public class StoredCRC {
     public static void realMain(String[] args) throws Throwable {
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ZipOutputStream zos = new ZipOutputStream(baos);
-
-        ZipEntry ze = new ZipEntry("test");
-        ze.setMethod(ZipOutputStream.STORED);
-
         String writtenString = "hello, world";
-        byte[] writtenData = writtenString.getBytes("ASCII");
-        ze.setSize(writtenData.length);
-        CRC32 crc = new CRC32();
-        crc.update(writtenData);
-        ze.setCrc(crc.getValue());
 
-        zos.putNextEntry(ze);
-        zos.write(writtenData, 0, writtenData.length);
-        zos.close();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+
+            ZipEntry ze = new ZipEntry("test");
+            ze.setMethod(ZipOutputStream.STORED);
+
+            byte[] writtenData = writtenString.getBytes("ASCII");
+            ze.setSize(writtenData.length);
+            CRC32 crc = new CRC32();
+            crc.update(writtenData);
+            ze.setCrc(crc.getValue());
+
+            zos.putNextEntry(ze);
+            zos.write(writtenData, 0, writtenData.length);
+        }
 
         byte[] data = baos.toByteArray();
 
-        // Run with an arg to create a test file that can be used to figure
-        // out what position in the data stream can be changed.
-        if (args.length > 0) {
-            FileOutputStream fos = new FileOutputStream("stored.zip");
-            fos.write(data, 0, data.length);
-            fos.close();
-        } else {
-            // Test that reading byte-at-a-time works
-            ZipInputStream zis = new ZipInputStream(
+        // Test that reading byte-at-a-time works
+        ZipInputStream zis = new ZipInputStream(
                 new ByteArrayInputStream(data));
-            ze = zis.getNextEntry();
-            int pos = 0;
-            byte[] readData = new byte[256];
-            try {
-                int count = zis.read(readData, pos, 1);
-                while (count > 0) {
-                    count = zis.read(readData, ++pos, 1);
-                }
-                check(writtenString.equals(new String(readData, 0, pos, "ASCII")));
-            } catch (Throwable t) {
-                unexpected(t);
+        ZipEntry ze = zis.getNextEntry();
+        int pos = 0;
+        byte[] readData = new byte[256];
+        try {
+            int count = zis.read(readData, pos, 1);
+            while (count > 0) {
+                count = zis.read(readData, ++pos, 1);
             }
-
-            // Test that data corruption is detected.  "offset" was
-            // determined to be in the entry's uncompressed data.
-            data[getDataOffset(data) + 4] ^= 1;
-
-            zis = new ZipInputStream(
-                new ByteArrayInputStream(data));
-            ze = zis.getNextEntry();
-
-            try {
-                zis.read(readData, 0, readData.length);
-                fail("Did not catch expected ZipException" );
-            } catch (ZipException ex) {
-                String msg = ex.getMessage();
-                check(msg != null && msg.startsWith("invalid entry CRC (expected 0x"));
-            } catch (Throwable t) {
-                unexpected(t);
-            }
+            check(writtenString.equals(new String(readData, 0, pos, "ASCII")));
+        } catch (Throwable t) {
+            unexpected(t);
         }
-    }
 
-    public static final int getDataOffset(byte b[]) {
-        final int LOCHDR = 30;       // LOC header size
-        final int LOCEXT = 28;       // extra field length
-        final int LOCNAM = 26;       // filename length
-        int lenExt = Byte.toUnsignedInt(b[LOCEXT]) | (Byte.toUnsignedInt(b[LOCEXT + 1]) << 8);
-        int lenNam = Byte.toUnsignedInt(b[LOCNAM]) | (Byte.toUnsignedInt(b[LOCNAM + 1]) << 8);
-        return LOCHDR + lenExt + lenNam;
+        // Test that data corruption is detected by replacing "hello, world"
+        // with "hello, World"
+        data = Zink.stream(data)
+                .map(r -> switch (r) {
+                    case FileData fileData -> new FileData( (os) -> {
+                        os.write("hello, World".getBytes("ASCII"));
+                    }, 12);
+                    default -> r;
+                })
+                .collect(Zink.toByteArray());
+
+        zis = new ZipInputStream(
+                new ByteArrayInputStream(data));
+        ze = zis.getNextEntry();
+
+        try {
+            zis.read(readData, 0, readData.length);
+            fail("Did not catch expected ZipException" );
+        } catch (ZipException ex) {
+            String msg = ex.getMessage();
+            check(msg != null && msg.startsWith("invalid entry CRC (expected 0x"));
+        } catch (Throwable t) {
+            unexpected(t);
+        }
+
     }
 
     //--------------------- Infrastructure ---------------------------
