@@ -37,7 +37,8 @@ import static jdk.test.lib.zink.Zink.*;
 /**
  * Represents the Local File Header in the ZIP file format
  */
-public record Loc(short version,
+public record Loc(int sig,
+                  short version,
                   short flags,
                   short method,
                   short time,
@@ -78,6 +79,7 @@ public record Loc(short version,
         ExtField[] extra = parseExt(extraBytes);
 
         Loc loc = new Loc(
+                SIG,
                 version,
                 flags,
                 method,
@@ -96,7 +98,7 @@ public record Loc(short version,
         return loc;
     }
     void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(SIG);
+        out.writeInt(sig);
         out.writeShorts(version, flags, method, time, date);
         out.writeInts(crc, csize, size);
         out.writeShorts(nlen, elen);
@@ -159,15 +161,15 @@ public record Loc(short version,
 
     public Loc crc(long value) {
         int crc = (int) value & 0XFFFFFFFF;
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc size(int size) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc csize(int csize) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc utf8(boolean useUtf8) {
@@ -177,12 +179,12 @@ public record Loc(short version,
         } else {
             flags &= ~0x800;
         }
-        return new Loc(version, (short) flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, (short) flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
 
     }
 
     public Loc time(short time) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     private short sizeOf(ExtField[] extra) {
@@ -212,27 +214,27 @@ public record Loc(short version,
     }
 
     public Loc extra(ExtField[] extra) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, sizeOf(extra), name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, sizeOf(extra), name, extra);
     }
 
     public Loc date(short date) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc version(short version) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc flags(short flags) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc method(short method) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc name(byte[] name) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, (short) name.length, elen, Arrays.copyOf(name, name.length), extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, (short) name.length, elen, Arrays.copyOf(name, name.length), extra);
     }
 
     public boolean isNamed(byte[] name) {
@@ -240,10 +242,14 @@ public record Loc(short version,
     }
 
     public Loc nlen(short nlen) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc elen(short elen) {
-        return new Loc(version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+    }
+
+    public Loc sig(int sig) {
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 }

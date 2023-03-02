@@ -39,7 +39,8 @@ import static jdk.test.lib.zink.Zink.*;
 /**
  * Represents the Central Directory Header in the ZIP file format
  */
-public record Cen(short version,
+public record Cen(int sig,
+                  short version,
                   short extractVersion,
                   short flags,
                   short method,
@@ -93,12 +94,12 @@ public record Cen(short version,
 
         ExtField[] extFields = parseExt(extra);
 
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extFields, comment);
+        return new Cen(SIG, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extFields, comment);
     }
 
     // Write this record to an OutputStream
     void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(SIG);
+        out.writeInt(sig);
         out.writeShorts(version, extractVersion, flags, method, time, date);
         out.writeInts(crc, csize, size);
         out.writeShorts(nlen, elen, clen, diskStart, internalAttr);
@@ -157,11 +158,11 @@ public record Cen(short version,
     }
 
     public Cen name(byte[] name) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, (short) name.length, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, (short) name.length, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen comment(byte[] comment) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, (short) comment.length, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, (short) comment.length, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     @Override
@@ -170,7 +171,7 @@ public record Cen(short version,
     }
 
     public Cen locOff(int locOff) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen toZip64() {
@@ -200,15 +201,15 @@ public record Cen(short version,
     }
 
     public Cen csize(int csize) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen size(int size) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen extra(ExtField[] extra) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, sizeOf(extra), clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, sizeOf(extra), clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen mapExtra(Function<ExtField, ExtField> mapper) {
@@ -219,43 +220,43 @@ public record Cen(short version,
     }
 
     public Cen crc(int crc) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen version(short version) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen extractVersion(short extractVersion) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen flags(short flags) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen method(short method) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen time(short time) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen date(short date) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen diskStart(short diskStart) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen internalAttr(short internalAttr) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen externalAttr(int externalAttr) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public boolean isNamed(byte[] name) {
@@ -263,14 +264,18 @@ public record Cen(short version,
     }
 
     public Cen nlen(short nlen) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen elen(short elen) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen clen(short clen) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+    }
+
+    public Cen sig(int sig) {
+        return new Cen(sig, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 }
