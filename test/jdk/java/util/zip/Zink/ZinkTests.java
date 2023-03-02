@@ -148,6 +148,7 @@ public class ZinkTests {
                             .csize(cen.csize())
                             .size(cen.size())
                             .nlen(cen.nlen())
+                            .elen(cen.elen())
                             .clen(cen.clen())
                             .diskStart(cen.diskStart())
                             .internalAttr(cen.internalAttr())

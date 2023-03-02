@@ -85,6 +85,23 @@ public class ZinkSamples {
     }
 
     @Test
+    public void shouldRejectInvalidCenExtraLength() throws IOException {
+
+        // Make the extra length in the CEN overflow into the next CEN
+        Path zip = Zink.stream(twoEntryZip())
+                .map(Cen.named("entry1", cen -> cen.elen((short) (42))))
+                .collect(Zink.toFile("invalid-cen-extra-length.zip"));
+
+        // Check ZipFile
+        ZipException ex = expectThrows(ZipException.class, () -> {
+            try (ZipFile zf = new ZipFile(zip.toFile())) {
+            }
+        });
+        assertEquals(ex.getMessage(), "invalid CEN header (bad header size)");
+    }
+
+
+    @Test
     public void shouldRejectInvalidCenNameLength() throws IOException {
 
         // Make the name length in the CEN overflow into the next CEN
