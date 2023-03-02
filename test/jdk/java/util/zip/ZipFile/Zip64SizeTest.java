@@ -20,41 +20,29 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import jdk.test.lib.zink.Zink;
 import org.testng.annotations.Test;
 
 import java.io.*;
-import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
+import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
 /**
  * @test
  * @bug 8226530
  * @summary ZIP File System tests that leverage DirectoryStream
+ * @enablePreview true
+ * @library /test/lib
  * @compile Zip64SizeTest.java
  * @run testng Zip64SizeTest
  */
 public class Zip64SizeTest {
-
-    private static final int BUFFER_SIZE = 2048;
-    // ZIP file to create
-    private static final String ZIP_FILE_NAME = "Zip64SizeTest.zip";
-    // File that will be created with a size greater than 0xFFFFFFFF
-    private static final String LARGE_FILE_NAME = "LargeZipEntry.txt";
-    // File that will be created with a size less than 0xFFFFFFFF
-    private static final String SMALL_FILE_NAME = "SmallZipEntry.txt";
-    // List of files to be added to the ZIP file
-    private static final List<String> ZIP_ENTRIES = List.of(LARGE_FILE_NAME,
-            SMALL_FILE_NAME);
-    private static final long LARGE_FILE_SIZE = 5L * 1024L * 1024L * 1024L; // 5GB
-    private static final long SMALL_FILE_SIZE = 0x100000L; // 1024L x 1024L;
 
     /**
      * Validate that if the size of a ZIP entry exceeds 0xFFFFFFFF, that the
@@ -62,85 +50,26 @@ public class Zip64SizeTest {
      * @throws IOException
      */
     @Test
-    private static void validateZipEntrySizes() throws IOException {
-        createFiles();
-        createZipFile();
-        System.out.println("Validating Zip Entry Sizes");
-        try (ZipFile zip = new ZipFile(ZIP_FILE_NAME)) {
-            ZipEntry ze = zip.getEntry(LARGE_FILE_NAME);
-            System.out.printf("Entry: %s, size= %s%n", ze.getName(), ze.getSize());
-            assertTrue(ze.getSize() == LARGE_FILE_SIZE);
-            ze = zip.getEntry(SMALL_FILE_NAME);
-            System.out.printf("Entry: %s, size= %s%n", ze.getName(), ze.getSize());
-            assertTrue(ze.getSize() == SMALL_FILE_SIZE);
-
+    private static void validateZip64EntrySize() throws IOException {
+        Path zip64 = Zink.stream(smallZip())
+                .flatMap(Zink.toZip64())
+                .collect(Zink.toFile("zip64-file.zip"));
+        try (ZipFile zip = new ZipFile(zip64.toFile())) {
+            ZipEntry ze = zip.getEntry("entry");
+            assertEquals(ze.getSize(), "hello".length());
         }
     }
 
     /**
-     * Delete the files created for use by the test
-     * @throws IOException if an error occurs deleting the files
+     * Make a small ZIP file
      */
-    private static void deleteFiles() throws IOException {
-        Files.deleteIfExists(Path.of(ZIP_FILE_NAME));
-        Files.deleteIfExists(Path.of(LARGE_FILE_NAME));
-        Files.deleteIfExists(Path.of(SMALL_FILE_NAME));
-    }
-
-    /**
-     * Create the ZIP file adding an entry whose size exceeds 0xFFFFFFFF
-     * @throws IOException if an error occurs creating the ZIP File
-     */
-    private static void createZipFile() throws IOException {
-        try (FileOutputStream fos = new FileOutputStream(ZIP_FILE_NAME);
-             ZipOutputStream zos = new ZipOutputStream(fos)) {
-            System.out.printf("Creating Zip file: %s%n", ZIP_FILE_NAME);
-            for (String srcFile : ZIP_ENTRIES) {
-                System.out.printf("...Adding Entry: %s%n", srcFile);
-                File fileToZip = new File(srcFile);
-                try (FileInputStream fis = new FileInputStream(fileToZip)) {
-                    ZipEntry zipEntry = new ZipEntry(fileToZip.getName());
-                    zipEntry.setSize(fileToZip.length());
-                    zos.putNextEntry(zipEntry);
-                    byte[] bytes = new byte[BUFFER_SIZE];
-                    int length;
-                    while ((length = fis.read(bytes)) >= 0) {
-                        zos.write(bytes, 0, length);
-                    }
-                }
-            }
+    private static byte[] smallZip() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(out)) {
+            zos.putNextEntry(new ZipEntry("entry"));
+            zos.write("Hello".getBytes(StandardCharsets.UTF_8));
         }
+        return out.toByteArray();
     }
 
-    /**
-     * Create the files that will be added to the ZIP file
-     * @throws IOException if there is a problem  creating the files
-     */
-    private static void createFiles() throws IOException {
-        try (RandomAccessFile largeFile = new RandomAccessFile(LARGE_FILE_NAME, "rw");
-             RandomAccessFile smallFile = new RandomAccessFile(SMALL_FILE_NAME, "rw")) {
-            System.out.printf("Creating %s%n", LARGE_FILE_NAME);
-            largeFile.setLength(LARGE_FILE_SIZE);
-            System.out.printf("Creating %s%n", SMALL_FILE_NAME);
-            smallFile.setLength(SMALL_FILE_SIZE);
-        }
-    }
-
-    /**
-     * Make sure the needed test files do not exist prior to executing the test
-     * @throws IOException
-     */
-    @BeforeMethod
-    public void setUp() throws IOException {
-        deleteFiles();
-    }
-
-    /**
-     * Remove the files created for the test
-     * @throws IOException
-     */
-    @AfterMethod
-    public void tearDown() throws IOException {
-        deleteFiles();
-    }
 }
