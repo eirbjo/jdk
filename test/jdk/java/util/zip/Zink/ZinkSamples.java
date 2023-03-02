@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.*;
 
@@ -65,6 +66,56 @@ public class ZinkSamples {
         expectThrows(ZipException.class, () -> {
             readZipInputStream(zip);
         });
+    }
+
+    @Test
+    public void shouldRejectInvalidCenNameLength() throws IOException {
+
+        // Make the name length in the CEN overflow into the next CEN
+        Path zip = Zink.stream(twoEntryZip())
+                .map(Cen.named("entry1", cen -> cen.nlen((short) (42))))
+                .collect(Zink.toFile("invalid-cen-name-length.zip"));
+
+            // Check ZipFile
+            ZipException ex = expectThrows(ZipException.class, () -> {
+                try (ZipFile zf = new ZipFile(zip.toFile())) {
+                }
+            });
+            assertEquals(ex.getMessage(), "invalid CEN header (bad entry name or comment)");
+    }
+
+    @Test
+    public void shouldRejectInvalidLocNameLength() throws IOException {
+
+        // Make the name length in the CEN overflow into the next CEN
+        Path zip = Zink.stream(twoEntryZip())
+                .map(Loc.named("entry1", loc -> loc.nlen((short) (loc.nlen()-1))))
+                .collect(Zink.toFile("invalid-loc-name-length.zip"));
+
+        // Check ZipInputStream
+        ZipException ex = expectThrows(ZipException.class, () -> {
+            try (ZipInputStream in = new ZipInputStream(Files.newInputStream(zip))) {
+                ZipEntry e;
+                while ((e = in.getNextEntry()) != null) {
+                    in.transferTo(OutputStream.nullOutputStream());
+                }
+            }
+        });
+        assertEquals(ex.getMessage(), "invalid stored block lengths");
+    }
+
+
+    private static byte[] twoEntryZip() throws IOException {
+        // Make a zip with two entries
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(out)) {
+            zo.putNextEntry(new ZipEntry("entry1"));
+            zo.write("Hello".getBytes(StandardCharsets.UTF_8));
+            zo.putNextEntry(new ZipEntry("entry2"));
+            zo.write("World".getBytes(StandardCharsets.UTF_8));
+        }
+        byte[] twoEntryZip = out.toByteArray();
+        return twoEntryZip;
     }
 
     @Test
