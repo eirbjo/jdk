@@ -31,19 +31,24 @@ public record ExtTs(byte flag, int modtime, int actime, int crtime) implements E
 
     public static final short ID = 0x5455;
 
-    public static ExtTs read(ByteBuffer buffer) {
+    public static ExtTs read(short dsize, ByteBuffer buffer) {
+        int rem = dsize;
         byte flag = buffer.get();
+        rem -=1;
         int modtime = -1;
         int actime = -1;
         int crtime = -1;
-        if(buffer.remaining() >= 4) {
+        if(rem >= 4) {
             modtime = buffer.getInt();
+            rem -= Integer.BYTES;
         }
-        if(buffer.remaining() >= 4) {
+        if(rem >= 4) {
             actime = buffer.getInt();
+            rem -= Integer.BYTES;
         }
-        if(buffer.remaining() >= 4) {
+        if(rem >= 4) {
             crtime = buffer.getInt();
+            rem -= Integer.BYTES;
         }
         return new ExtTs(flag, modtime, actime, crtime);
     }
