@@ -102,6 +102,16 @@ public class ZinkTests {
     }
 
     @Test
+    public void shouldCollectEmptyEntryStream() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(out)) {
+            zo.putNextEntry(new ZipEntry("entry"));
+        }
+
+        Zink.stream(out.toByteArray())
+                .collect(Zink.toByteArray());
+    }
+    @Test
     public void identityTransformsShouldProduceSameBytes() throws IOException {
 
         byte[] zip = Zink.stream(smallZip())
