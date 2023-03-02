@@ -155,7 +155,7 @@ public record Cen(short version,
     }
 
     public Cen name(byte[] name) {
-        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, nlen, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
+        return new Cen(version, extractVersion, flags, method, time, date, crc, csize, size, (short) name.length, diskStart, internalAttr, externalAttr, locOff, name, extra, comment);
     }
 
     public Cen comment(byte[] comment) {
