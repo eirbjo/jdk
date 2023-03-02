@@ -22,17 +22,14 @@
  *
  */
 
+import jdk.test.lib.zink.Cen;
+import jdk.test.lib.zink.Zink;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.FileChannel;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -45,21 +42,16 @@ import static org.testng.Assert.expectThrows;
  * @test
  * @summary Validate that opening ZIP files files with invalid UTF-8
  * byte sequences in the name or comment fields fails with ZipException
- * @run testng/othervm InvalidBytesInEntryNameOrComment
+ * @enablePreview true
+ * @library /test/lib
+ * @run testng InvalidBytesInEntryNameOrComment
  */
 public class InvalidBytesInEntryNameOrComment {
-
-    // Offsets for navigating the CEN fields
-    private static final int EOC_OFF = 6;   // Offset from EOF to find CEN offset
-    private static final int CEN_HDR = 45;  // Size of a CEN header
-    private static final int NLEN = 28;     // Name length
-    private static final int ELEN = 30;     // Extra length
-    private static final int CLEN = 32;     // Comment length
 
     // Example invalid UTF-8 byte sequence
     private static final byte[] INVALID_UTF8_BYTE_SEQUENCE = {(byte) 0xF0, (byte) 0xA4, (byte) 0xAD};
 
-    // Expected ZipException regex
+    // Expected ZipException message
     private static final String BAD_ENTRY_NAME_OR_COMMENT = "invalid CEN header (bad entry name or comment)";
 
     // ZIP file with invalid name field
@@ -123,61 +115,28 @@ public class InvalidBytesInEntryNameOrComment {
      * Make a ZIP with invalid bytes in the CEN name field
      */
     private Path invalidName(String name, byte[] template) throws IOException {
-        ByteBuffer buffer = copyTemplate(template);
-        int off = cenStart(buffer);
-        // Name field starts here
-        int noff = off + CEN_HDR;
-
-        // Write invalid bytes
-        buffer.put(noff, INVALID_UTF8_BYTE_SEQUENCE, 0, INVALID_UTF8_BYTE_SEQUENCE.length);
-        return writeFile(name, buffer);
-
+        return Zink.stream(template)
+                .map(Cen.map(cen -> cen.name(invalidate(cen.name()))))
+                .collect(Zink.toFile(name));
     }
 
-    /**
-     * Make a copy of the ZIP template and wrap it in a little-endian
-     * ByteBuffer
-     */
-    private ByteBuffer copyTemplate(byte[] template) {
-        return ByteBuffer.wrap(Arrays.copyOf(template, template.length))
-                .order(ByteOrder.LITTLE_ENDIAN);
-    }
 
     /**
      * Make a ZIP with invalid bytes in the CEN comment field
      */
     private Path invalidComment(String name, byte[] template) throws IOException {
-        ByteBuffer buffer = copyTemplate(template);
-        int off = cenStart(buffer);
-        // Need to skip past the length of the name and extra fields
-        int nlen = buffer.getShort(off + NLEN);
-        int elen = buffer.getShort(off + ELEN);
-
-        // Comment field starts here
-        int coff = off + CEN_HDR + nlen + elen;
-
-        // Write invalid bytes
-        buffer.put(coff, INVALID_UTF8_BYTE_SEQUENCE, 0, INVALID_UTF8_BYTE_SEQUENCE.length);
-        return writeFile(name, buffer);
+        return Zink.stream(template)
+                .map(Cen.map(cen -> cen.comment(invalidate(cen.comment()))))
+                .collect(Zink.toFile(name));
     }
 
-
     /**
-     * Finds the offset of the start of the CEN directory
+     * Returns a copy of the byte array starting with an invalid UTF-8 byte sequence
       */
-    private int cenStart(ByteBuffer buffer) {
-        return buffer.getInt(buffer.capacity() - EOC_OFF);
-    }
-
-    /**
-     * Utility to write a ByteBuffer to disk
-     */
-    private Path writeFile(String name, ByteBuffer buffer) throws IOException {
-        Path zip = Path.of(name);
-        try (FileChannel ch = new FileOutputStream(zip.toFile()).getChannel()) {
-            buffer.rewind();
-            ch.write(buffer);
-        }
-        return zip;
+    private byte[] invalidate(byte[] bytes) {
+        byte[] copy = bytes.clone();
+        System.arraycopy(INVALID_UTF8_BYTE_SEQUENCE, 0,
+                copy, 0, INVALID_UTF8_BYTE_SEQUENCE.length);
+        return copy;
     }
 }
