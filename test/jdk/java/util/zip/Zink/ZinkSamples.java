@@ -100,7 +100,6 @@ public class ZinkSamples {
         assertEquals(ex.getMessage(), "invalid CEN header (bad header size)");
     }
 
-
     @Test
     public void shouldRejectInvalidCenNameLength() throws IOException {
 
@@ -136,6 +135,29 @@ public class ZinkSamples {
         });
         assertEquals(ex.getMessage(), "invalid stored block lengths");
     }
+
+    @Test
+    public void shouldRejectInvalidLocExtraLength() throws IOException {
+
+        // Make the extra length in the LOC overflow into the next File data
+        Path zip = Zink.stream(twoEntryZip())
+                .map(Loc.named("entry1", loc -> loc.elen((short) (42))))
+                .collect(Zink.toFile("invalid-loc-extra-length.zip"));
+
+        // Check ZipFile
+        ZipException ex = expectThrows(ZipException.class, () -> {
+            try (ZipInputStream in = new ZipInputStream(Files.newInputStream(zip))) {
+                ZipEntry e;
+                while ((e = in.getNextEntry()) != null) {
+                    in.transferTo(OutputStream.nullOutputStream());
+                }
+            }
+        });
+        assertEquals(ex.getMessage(), "invalid stored block lengths");
+    }
+
+
+
 
 
     private static byte[] twoEntryZip() throws IOException {

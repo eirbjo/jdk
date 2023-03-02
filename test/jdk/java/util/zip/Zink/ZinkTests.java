@@ -129,9 +129,10 @@ public class ZinkTests {
                             .crc(loc.crc())
                             .csize(loc.csize())
                             .size(loc.size())
-                            .extra(loc.extra())
                             .nlen(loc.nlen())
-                            .name(loc.name());
+                            .elen(loc.elen())
+                            .name(loc.name())
+                            .extra(loc.extra());
                     case Desc desc -> desc
                             .signed(desc.signed())
                             .zip64(desc.zip64())
