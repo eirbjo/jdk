@@ -69,6 +69,22 @@ public class ZinkSamples {
     }
 
     @Test
+    public void shouldRejectInvalidCenCommentLength() throws IOException {
+
+        // Make the comment length in the CEN overflow into the next CEN
+        Path zip = Zink.stream(twoEntryZip())
+                .map(Cen.named("entry1", cen -> cen.clen((short) (42))))
+                .collect(Zink.toFile("invalid-cen-comment-length.zip"));
+
+        // Check ZipFile
+        ZipException ex = expectThrows(ZipException.class, () -> {
+            try (ZipFile zf = new ZipFile(zip.toFile())) {
+            }
+        });
+        assertEquals(ex.getMessage(), "invalid CEN header (bad entry name or comment)");
+    }
+
+    @Test
     public void shouldRejectInvalidCenNameLength() throws IOException {
 
         // Make the name length in the CEN overflow into the next CEN
@@ -76,12 +92,12 @@ public class ZinkSamples {
                 .map(Cen.named("entry1", cen -> cen.nlen((short) (42))))
                 .collect(Zink.toFile("invalid-cen-name-length.zip"));
 
-            // Check ZipFile
-            ZipException ex = expectThrows(ZipException.class, () -> {
-                try (ZipFile zf = new ZipFile(zip.toFile())) {
-                }
-            });
-            assertEquals(ex.getMessage(), "invalid CEN header (bad entry name or comment)");
+        // Check ZipFile
+        ZipException ex = expectThrows(ZipException.class, () -> {
+            try (ZipFile zf = new ZipFile(zip.toFile())) {
+            }
+        });
+        assertEquals(ex.getMessage(), "invalid CEN header (bad entry name or comment)");
     }
 
     @Test
