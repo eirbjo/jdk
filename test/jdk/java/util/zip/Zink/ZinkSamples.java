@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.*;
 
@@ -65,6 +66,28 @@ public class ZinkSamples {
         expectThrows(ZipException.class, () -> {
             readZipInputStream(zip);
         });
+    }
+
+    @Test
+    public void shouldRejectInvalidNameLength() throws IOException {
+
+        // Make a zip with two entries
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(out)) {
+            zo.putNextEntry(new ZipEntry("entry1"));
+            zo.putNextEntry(new ZipEntry("entry2"));
+        }
+        // Make the name length in the CEN overflow into the next CEN
+        Path zip = Zink.stream(out.toByteArray())
+                .map(Cen.named("entry1", cen -> cen.nlen((short) (42))))
+                .collect(Zink.toFile("invalid-name-length.zip"));
+
+        ZipException ex = expectThrows(ZipException.class, () -> {
+            try (ZipFile zf = new ZipFile(zip.toFile())) {
+            }
+        });
+
+        assertEquals(ex.getMessage(), "invalid CEN header (bad entry name or comment)");
     }
 
     @Test
