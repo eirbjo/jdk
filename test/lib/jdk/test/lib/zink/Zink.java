@@ -743,6 +743,9 @@ public abstract class Zink  implements Closeable
                     int n;
                     while (!inf.finished() && !inf.needsDictionary()) {
                         do {
+                            if (inf.finished() || inf.needsDictionary()) {
+                                break;
+                            }
                             if (inf.needsInput()) {
                                 int len = input.read(readBuf, 0, readBuf.length);
                                 if (len == -1) {
