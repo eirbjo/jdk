@@ -130,6 +130,7 @@ public class ZinkTests {
                             .csize(loc.csize())
                             .size(loc.size())
                             .extra(loc.extra())
+                            .nlen(loc.nlen())
                             .name(loc.name());
                     case Desc desc -> desc
                             .signed(desc.signed())
