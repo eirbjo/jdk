@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,15 +21,14 @@
  * questions.
  */
 
-import static java.util.zip.ZipFile.CENOFF;
-import static java.util.zip.ZipFile.CENTIM;
-import static java.util.zip.ZipFile.ENDHDR;
-import static java.util.zip.ZipFile.ENDOFF;
-import static java.util.zip.ZipFile.LOCTIM;
+import jdk.test.lib.zink.Cen;
+import jdk.test.lib.zink.Loc;
+import jdk.test.lib.zink.Zink;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -40,81 +39,83 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
+import static org.testng.Assert.assertEquals;
+
 /* @test
  * @bug 8184940 8188869
  * @summary JDK 9 rejects zip files where the modified day or month is 0
  *          or otherwise represent an invalid date, such as 1980-02-30 24:60:60
  * @author Liam Miller-Cushon
+ * @enablePreview true
+ * @library /test/lib
+ * @run testng ZeroDate
  */
 public class ZeroDate {
 
-    public static void main(String[] args) throws Exception {
+    // Byte array holding a single-entry ZIP file
+    private byte[] smallZip;
+
+    @BeforeTest
+    public void setup() throws IOException {
         // create a zip file, and read it in as a byte array
-        Path path = Files.createTempFile("bad", ".zip");
-        try (OutputStream os = Files.newOutputStream(path);
-                ZipOutputStream zos = new ZipOutputStream(os)) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(out)) {
             ZipEntry e = new ZipEntry("x");
             zos.putNextEntry(e);
             zos.write((int) 'x');
         }
-        int len = (int) Files.size(path);
-        byte[] data = new byte[len];
-        try (InputStream is = Files.newInputStream(path)) {
-            is.read(data);
-        }
-        Files.delete(path);
+        smallZip = out.toByteArray();
+    }
 
+    @Test
+    public void zeroDate() throws IOException {
         // year, month, day are zero
-        testDate(data.clone(), 0, LocalDate.of(1979, 11, 30).atStartOfDay());
+        testDate((short) (0 << 9 | 0 << 5 | 0), LocalDate.of(1979, 11, 30));
+    }
+
+    @Test
+    public void yearIsZero() throws IOException {
         // only year is zero
-        testDate(data.clone(), 0 << 25 | 4 << 21 | 5 << 16, LocalDate.of(1980, 4, 5).atStartOfDay());
+        testDate((short) (0 << 9 | 4 << 5 | 5), LocalDate.of(1980, 4, 5));
+    }
+
+    @Test
+    public void monthGreaterThan12() throws IOException {
         // month is greater than 12
-        testDate(data.clone(), 0 << 25 | 13 << 21 | 1 << 16, LocalDate.of(1981, 1, 1).atStartOfDay());
+        testDate((short) (0 << 9 | 13 << 5 | 1), LocalDate.of(1981, 1, 1));
+    }
+
+    @Test
+    public void thirtiethOfFebruary() throws IOException {
         // 30th of February
-        testDate(data.clone(), 0 << 25 | 2 << 21 | 30 << 16, LocalDate.of(1980, 3, 1).atStartOfDay());
+        testDate((short) (0 << 9 | 2 << 5 | 30), LocalDate.of(1980, 3, 1));
+    }
+
+    public void afterMidnight() throws IOException {
         // 30th of February, 24:60:60
-        testDate(data.clone(), 0 << 25 | 2 << 21 | 30 << 16 | 24 << 11 | 60 << 5 | 60 >> 1,
+        testDateTime((short) (0 << 0 | 2 << 5 | 30),   (short) (24 << 11 | 60 << 5 | 60 >> 1),
                 LocalDateTime.of(1980, 3, 2, 1, 1, 0));
     }
 
-    private static void testDate(byte[] data, int date, LocalDateTime expected) throws IOException {
-        // set the datetime
-        int endpos = data.length - ENDHDR;
-        int cenpos = u16(data, endpos + ENDOFF);
-        int locpos = u16(data, cenpos + CENOFF);
-        writeU32(data, cenpos + CENTIM, date);
-        writeU32(data, locpos + LOCTIM, date);
+    private void testDate(short date, LocalDate expected) throws IOException {
+        // Set date = 0, expecting start of day
+        testDateTime(date, (short) 0, expected.atStartOfDay());
+    }
+    private void testDateTime(short date, short time, LocalDateTime expected) throws IOException {
+        // Create a ZIP with modified date and time fields in the LOC and CEN headers
+        Path path = Zink.stream(smallZip)
+                .map(Loc.map( loc -> loc.time(time).date(date)))
+                .map(Cen.map(cen -> cen.time(time).date(date)))
+                .collect(Zink.toFile("out.zip"));
 
-        // ensure that the archive is still readable, and the date is 1979-11-30
-        Path path = Files.createTempFile("out", ".zip");
-        try (OutputStream os = Files.newOutputStream(path)) {
-            os.write(data);
-        }
+        // ensure that the archive is still readable, and the modified getLastModifiedTime is as expected
         try (ZipFile zf = new ZipFile(path.toFile())) {
             ZipEntry ze = zf.entries().nextElement();
             Instant actualInstant = ze.getLastModifiedTime().toInstant();
             Instant expectedInstant = expected.atZone(ZoneId.systemDefault()).toInstant();
-            if (!actualInstant.equals(expectedInstant)) {
-                throw new AssertionError(
-                        String.format("actual: %s, expected: %s", actualInstant, expectedInstant));
-            }
+            assertEquals(actualInstant, expectedInstant);
         } finally {
             Files.delete(path);
         }
-    }
-
-    static int u8(byte[] data, int offset) {
-        return data[offset] & 0xff;
-    }
-
-    static int u16(byte[] data, int offset) {
-        return u8(data, offset) + (u8(data, offset + 1) << 8);
-    }
-
-    private static void writeU32(byte[] data, int pos, int value) {
-        data[pos] = (byte) (value & 0xff);
-        data[pos + 1] = (byte) ((value >> 8) & 0xff);
-        data[pos + 2] = (byte) ((value >> 16) & 0xff);
-        data[pos + 3] = (byte) ((value >> 24) & 0xff);
     }
 }
