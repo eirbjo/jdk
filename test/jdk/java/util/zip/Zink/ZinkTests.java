@@ -120,7 +120,8 @@ public class ZinkTests {
 
         byte[] transformed = Zink.stream(zip)
                 .map(r -> switch(r) {
-                    case Loc loc -> loc.crc(loc.crc())
+                    case Loc loc -> loc.sig(loc.sig())
+                            .crc(loc.crc())
                             .version(loc.version())
                             .flags(loc.flags())
                             .method(loc.method())
