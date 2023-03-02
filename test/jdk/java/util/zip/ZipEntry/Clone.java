@@ -21,19 +21,53 @@
  * questions.
  */
 
-/* @test
-   @bug 4134526
-   @summary Test if ZipEntry.clone() works when the extra field is null.
-   */
+/**
+ * @test
+ * @bug 4134526
+ * @summary Test if ZipEntry.clone() works when the extra field is null.
+ * @enablePreview true
+ * @library /test/lib
+ */
+import jdk.test.lib.zink.Cen;
+import jdk.test.lib.zink.ExtField;
+import jdk.test.lib.zink.Loc;
+import jdk.test.lib.zink.Zink;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.Enumeration;
+import java.util.stream.Collectors;
 import java.util.zip.*;
 import java.io.*;
 
 public class Clone {
 
     public static void main(String argv[]) throws Exception {
-        ZipFile zf = new ZipFile(new File(System.getProperty("test.src"),
-                                          "input.jar"));
+        // Make a small ZIP file
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(out)) {
+            zo.putNextEntry(new ZipEntry("entry"));
+            zo.write("hello".getBytes(StandardCharsets.UTF_8));
+        }
+
+        // Strip any extra fields from LOC and CEN
+        Path zip = Zink.stream(out.toByteArray())
+                .map(Loc.map(loc -> loc.extra(new ExtField[0])))
+                .map(Cen.map(cen -> cen.extra(new ExtField[0])))
+                .collect(Zink.toFile("zero-extra-field.zip"));
+
+        // Consume all entry input streams using ZipFile
+        try (ZipFile zf = new ZipFile(zip.toFile())) {
+            Enumeration<? extends ZipEntry> entries = zf.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                try (InputStream in = zf.getInputStream(entry)) {
+                    in.transferTo(OutputStream.nullOutputStream());
+                }
+            }
+        }
+
+        // Verify that a ZipEntry without extra data can be cloned
         ZipEntry e = new ZipEntry("foo");
         e.clone();
     }
