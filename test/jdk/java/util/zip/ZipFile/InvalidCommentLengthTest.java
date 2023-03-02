@@ -22,15 +22,19 @@
  *
  */
 
+import jdk.test.lib.zink.Cen;
+import jdk.test.lib.zink.Zink;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.jar.JarFile;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -42,7 +46,9 @@ import static org.testng.Assert.*;
  * @bug 8280404
  * @summary Validate that Zip/JarFile will throw a ZipException when the CEN
  * comment length field contains an incorrect value
- * @run testng/othervm InvalidCommentLengthTest
+ * @enablePreview true
+ * @library /test/lib
+ * @run testng InvalidCommentLengthTest
  */
 public class InvalidCommentLengthTest {
 
@@ -58,195 +64,6 @@ public class InvalidCommentLengthTest {
     // Zip/Jar file
     public static final String INVALID_CEN_HEADER_BAD_ENTRY_NAME_OR_COMMENT =
             "invalid CEN header (bad entry name or comment)";
-
-    /**
-     * Byte array representing a valid jar file prior modifying the comment length
-     * entry in a CEN file header.
-     * The "Valid-CEN-Comment-Length.jar" jar file was created via:
-     * <pre>
-     *     {@code
-     *     jar cvf Valid-CEN-Comment-Length.jar Hello.txt Tennis.txt BruceWayne.txt
-     *     added manifest
-     *     adding: Hello.txt(in = 12) (out= 14)(deflated -16%)
-     *     adding: Tennis.txt(in = 53) (out= 53)(deflated 0%)
-     *     adding: BruceWayne.txt(in = 12) (out= 14)(deflated -16%)
-     *     }
-     * </pre>
-     * Its contents are:
-     * <pre>
-     *     {@code
-     *     jar tvf Valid-CEN-Comment-Length.jar
-     *      0 Wed Mar 02 06:39:24 EST 2022 META-INF/
-     *     66 Wed Mar 02 06:39:24 EST 2022 META-INF/MANIFEST.MF
-     *     12 Wed Mar 02 06:39:06 EST 2022 Hello.txt
-     *     53 Wed Mar 02 13:04:48 EST 2022 Tennis.txt
-     *     12 Wed Mar 02 15:15:34 EST 2022 BruceWayne.txt
-     *     }
-     * </pre>
-     * The ByteArray was created by:
-     * <pre>
-     *  {@code
-     *     var jar = Files.readAllBytes("Valid-CEN-Comment-Length.jar");
-     *     var validEntryName = createByteArray(fooJar,
-     *           "VALID_ZIP_WITH_NO_COMMENTS_BYTES");
-     *  }
-     * </pre>
-     */
-    public static byte[] VALID_ZIP_WITH_NO_COMMENTS_BYTES = {
-            (byte) 0x50, (byte) 0x4b, (byte) 0x3, (byte) 0x4, (byte) 0x14,
-            (byte) 0x0, (byte) 0x8, (byte) 0x8, (byte) 0x8, (byte) 0x0,
-            (byte) 0xec, (byte) 0x34, (byte) 0x62, (byte) 0x54, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x9, (byte) 0x0, (byte) 0x4, (byte) 0x0,
-            (byte) 0x4d, (byte) 0x45, (byte) 0x54, (byte) 0x41, (byte) 0x2d,
-            (byte) 0x49, (byte) 0x4e, (byte) 0x46, (byte) 0x2f, (byte) 0xfe,
-            (byte) 0xca, (byte) 0x0, (byte) 0x0, (byte) 0x3, (byte) 0x0,
-            (byte) 0x50, (byte) 0x4b, (byte) 0x7, (byte) 0x8, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x2, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x50, (byte) 0x4b, (byte) 0x3, (byte) 0x4,
-            (byte) 0x14, (byte) 0x0, (byte) 0x8, (byte) 0x8, (byte) 0x8,
-            (byte) 0x0, (byte) 0xec, (byte) 0x34, (byte) 0x62, (byte) 0x54,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x14, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x4d, (byte) 0x45, (byte) 0x54, (byte) 0x41,
-            (byte) 0x2d, (byte) 0x49, (byte) 0x4e, (byte) 0x46, (byte) 0x2f,
-            (byte) 0x4d, (byte) 0x41, (byte) 0x4e, (byte) 0x49, (byte) 0x46,
-            (byte) 0x45, (byte) 0x53, (byte) 0x54, (byte) 0x2e, (byte) 0x4d,
-            (byte) 0x46, (byte) 0xf3, (byte) 0x4d, (byte) 0xcc, (byte) 0xcb,
-            (byte) 0x4c, (byte) 0x4b, (byte) 0x2d, (byte) 0x2e, (byte) 0xd1,
-            (byte) 0xd, (byte) 0x4b, (byte) 0x2d, (byte) 0x2a, (byte) 0xce,
-            (byte) 0xcc, (byte) 0xcf, (byte) 0xb3, (byte) 0x52, (byte) 0x30,
-            (byte) 0xd4, (byte) 0x33, (byte) 0xe0, (byte) 0xe5, (byte) 0x72,
-            (byte) 0x2e, (byte) 0x4a, (byte) 0x4d, (byte) 0x2c, (byte) 0x49,
-            (byte) 0x4d, (byte) 0xd1, (byte) 0x75, (byte) 0xaa, (byte) 0x4,
-            (byte) 0xa, (byte) 0x98, (byte) 0xe8, (byte) 0x19, (byte) 0xe8,
-            (byte) 0x19, (byte) 0x2a, (byte) 0x68, (byte) 0xf8, (byte) 0x17,
-            (byte) 0x25, (byte) 0x26, (byte) 0xe7, (byte) 0xa4, (byte) 0x2a,
-            (byte) 0x38, (byte) 0xe7, (byte) 0x17, (byte) 0x15, (byte) 0xe4,
-            (byte) 0x17, (byte) 0x25, (byte) 0x96, (byte) 0x0, (byte) 0x15,
-            (byte) 0x6b, (byte) 0xf2, (byte) 0x72, (byte) 0xf1, (byte) 0x72,
-            (byte) 0x1, (byte) 0x0, (byte) 0x50, (byte) 0x4b, (byte) 0x7,
-            (byte) 0x8, (byte) 0xf4, (byte) 0x59, (byte) 0xdc, (byte) 0xa6,
-            (byte) 0x42, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x42,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x50, (byte) 0x4b,
-            (byte) 0x3, (byte) 0x4, (byte) 0x14, (byte) 0x0, (byte) 0x8,
-            (byte) 0x8, (byte) 0x8, (byte) 0x0, (byte) 0xe3, (byte) 0x34,
-            (byte) 0x62, (byte) 0x54, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x9,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x48, (byte) 0x65,
-            (byte) 0x6c, (byte) 0x6c, (byte) 0x6f, (byte) 0x2e, (byte) 0x74,
-            (byte) 0x78, (byte) 0x74, (byte) 0xf3, (byte) 0x48, (byte) 0xcd,
-            (byte) 0xc9, (byte) 0xc9, (byte) 0x57, (byte) 0x28, (byte) 0xcf,
-            (byte) 0x2f, (byte) 0xca, (byte) 0x49, (byte) 0xe1, (byte) 0x2,
-            (byte) 0x0, (byte) 0x50, (byte) 0x4b, (byte) 0x7, (byte) 0x8,
-            (byte) 0xd5, (byte) 0xe0, (byte) 0x39, (byte) 0xb7, (byte) 0xe,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0xc, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x50, (byte) 0x4b, (byte) 0x3,
-            (byte) 0x4, (byte) 0x14, (byte) 0x0, (byte) 0x8, (byte) 0x8,
-            (byte) 0x8, (byte) 0x0, (byte) 0x98, (byte) 0x68, (byte) 0x62,
-            (byte) 0x54, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0xa, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x54, (byte) 0x65, (byte) 0x6e,
-            (byte) 0x6e, (byte) 0x69, (byte) 0x73, (byte) 0x2e, (byte) 0x74,
-            (byte) 0x78, (byte) 0x74, (byte) 0x73, (byte) 0xf2, (byte) 0xb,
-            (byte) 0x50, (byte) 0x8, (byte) 0x48, (byte) 0x2c, (byte) 0xca,
-            (byte) 0x4c, (byte) 0x4a, (byte) 0x2c, (byte) 0x56, (byte) 0xf0,
-            (byte) 0x2f, (byte) 0x48, (byte) 0xcd, (byte) 0x53, (byte) 0xc8,
-            (byte) 0x2c, (byte) 0x56, (byte) 0x48, (byte) 0x54, (byte) 0x48,
-            (byte) 0x2b, (byte) 0xcd, (byte) 0x53, (byte) 0x8, (byte) 0x49,
-            (byte) 0xcd, (byte) 0xcb, (byte) 0x3, (byte) 0x72, (byte) 0x42,
-            (byte) 0xf2, (byte) 0x4b, (byte) 0x8b, (byte) 0xf2, (byte) 0x12,
-            (byte) 0x73, (byte) 0x53, (byte) 0xf3, (byte) 0x4a, (byte) 0x14,
-            (byte) 0x4a, (byte) 0xf2, (byte) 0x15, (byte) 0xca, (byte) 0x13,
-            (byte) 0x4b, (byte) 0x92, (byte) 0x33, (byte) 0xb8, (byte) 0x0,
-            (byte) 0x50, (byte) 0x4b, (byte) 0x7, (byte) 0x8, (byte) 0xaa,
-            (byte) 0xad, (byte) 0x14, (byte) 0xd, (byte) 0x35, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x35, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x50, (byte) 0x4b, (byte) 0x3, (byte) 0x4,
-            (byte) 0x14, (byte) 0x0, (byte) 0x8, (byte) 0x8, (byte) 0x8,
-            (byte) 0x0, (byte) 0xf1, (byte) 0x79, (byte) 0x62, (byte) 0x54,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0xe, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x42, (byte) 0x72, (byte) 0x75, (byte) 0x63,
-            (byte) 0x65, (byte) 0x57, (byte) 0x61, (byte) 0x79, (byte) 0x6e,
-            (byte) 0x65, (byte) 0x2e, (byte) 0x74, (byte) 0x78, (byte) 0x74,
-            (byte) 0xf3, (byte) 0x54, (byte) 0x48, (byte) 0xcc, (byte) 0x55,
-            (byte) 0x70, (byte) 0x4a, (byte) 0x2c, (byte) 0xc9, (byte) 0x4d,
-            (byte) 0xcc, (byte) 0xe3, (byte) 0x2, (byte) 0x0, (byte) 0x50,
-            (byte) 0x4b, (byte) 0x7, (byte) 0x8, (byte) 0x6c, (byte) 0x70,
-            (byte) 0x60, (byte) 0xbd, (byte) 0xe, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0xc, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x50, (byte) 0x4b, (byte) 0x1, (byte) 0x2, (byte) 0x14,
-            (byte) 0x0, (byte) 0x14, (byte) 0x0, (byte) 0x8, (byte) 0x8,
-            (byte) 0x8, (byte) 0x0, (byte) 0xec, (byte) 0x34, (byte) 0x62,
-            (byte) 0x54, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x2, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x9, (byte) 0x0,
-            (byte) 0x4, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x4d, (byte) 0x45, (byte) 0x54, (byte) 0x41,
-            (byte) 0x2d, (byte) 0x49, (byte) 0x4e, (byte) 0x46, (byte) 0x2f,
-            (byte) 0xfe, (byte) 0xca, (byte) 0x0, (byte) 0x0, (byte) 0x50,
-            (byte) 0x4b, (byte) 0x1, (byte) 0x2, (byte) 0x14, (byte) 0x0,
-            (byte) 0x14, (byte) 0x0, (byte) 0x8, (byte) 0x8, (byte) 0x8,
-            (byte) 0x0, (byte) 0xec, (byte) 0x34, (byte) 0x62, (byte) 0x54,
-            (byte) 0xf4, (byte) 0x59, (byte) 0xdc, (byte) 0xa6, (byte) 0x42,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x42, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x14, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x3d, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x4d, (byte) 0x45, (byte) 0x54, (byte) 0x41, (byte) 0x2d,
-            (byte) 0x49, (byte) 0x4e, (byte) 0x46, (byte) 0x2f, (byte) 0x4d,
-            (byte) 0x41, (byte) 0x4e, (byte) 0x49, (byte) 0x46, (byte) 0x45,
-            (byte) 0x53, (byte) 0x54, (byte) 0x2e, (byte) 0x4d, (byte) 0x46,
-            (byte) 0x50, (byte) 0x4b, (byte) 0x1, (byte) 0x2, (byte) 0x14,
-            (byte) 0x0, (byte) 0x14, (byte) 0x0, (byte) 0x8, (byte) 0x8,
-            (byte) 0x8, (byte) 0x0, (byte) 0xe3, (byte) 0x34, (byte) 0x62,
-            (byte) 0x54, (byte) 0xd5, (byte) 0xe0, (byte) 0x39, (byte) 0xb7,
-            (byte) 0xe, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0xc,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x9, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0xc1, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x48, (byte) 0x65, (byte) 0x6c, (byte) 0x6c,
-            (byte) 0x6f, (byte) 0x2e, (byte) 0x74, (byte) 0x78, (byte) 0x74,
-            (byte) 0x50, (byte) 0x4b, (byte) 0x1, (byte) 0x2, (byte) 0x14,
-            (byte) 0x0, (byte) 0x14, (byte) 0x0, (byte) 0x8, (byte) 0x8,
-            (byte) 0x8, (byte) 0x0, (byte) 0x98, (byte) 0x68, (byte) 0x62,
-            (byte) 0x54, (byte) 0xaa, (byte) 0xad, (byte) 0x14, (byte) 0xd,
-            (byte) 0x35, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x35,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0xa, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x6, (byte) 0x1, (byte) 0x0,
-            (byte) 0x0, (byte) 0x54, (byte) 0x65, (byte) 0x6e, (byte) 0x6e,
-            (byte) 0x69, (byte) 0x73, (byte) 0x2e, (byte) 0x74, (byte) 0x78,
-            (byte) 0x74, (byte) 0x50, (byte) 0x4b, (byte) 0x1, (byte) 0x2,
-            (byte) 0x14, (byte) 0x0, (byte) 0x14, (byte) 0x0, (byte) 0x8,
-            (byte) 0x8, (byte) 0x8, (byte) 0x0, (byte) 0xf1, (byte) 0x79,
-            (byte) 0x62, (byte) 0x54, (byte) 0x6c, (byte) 0x70, (byte) 0x60,
-            (byte) 0xbd, (byte) 0xe, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0xc, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0xe,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x73, (byte) 0x1,
-            (byte) 0x0, (byte) 0x0, (byte) 0x42, (byte) 0x72, (byte) 0x75,
-            (byte) 0x63, (byte) 0x65, (byte) 0x57, (byte) 0x61, (byte) 0x79,
-            (byte) 0x6e, (byte) 0x65, (byte) 0x2e, (byte) 0x74, (byte) 0x78,
-            (byte) 0x74, (byte) 0x50, (byte) 0x4b, (byte) 0x5, (byte) 0x6,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x0, (byte) 0x5,
-            (byte) 0x0, (byte) 0x5, (byte) 0x0, (byte) 0x28, (byte) 0x1,
-            (byte) 0x0, (byte) 0x0, (byte) 0xbd, (byte) 0x1, (byte) 0x0,
-            (byte) 0x0, (byte) 0x0, (byte) 0x0,
-    };
 
     /**
      * Create Jar files used by the tests.
@@ -269,15 +86,30 @@ public class InvalidCommentLengthTest {
         Files.deleteIfExists(VALID_CEN_COMMENT_LENGTH_JAR);
         Files.deleteIfExists(INVALID_CEN_COMMENT_LENGTH_JAR);
         // Create the valid jar
-        Files.write(VALID_CEN_COMMENT_LENGTH_JAR, VALID_ZIP_WITH_NO_COMMENTS_BYTES);
+        createValidJar();
         // Now create an invalid jar
-        byte[] invalid_bytes = Arrays.copyOf(VALID_ZIP_WITH_NO_COMMENTS_BYTES,
-                VALID_ZIP_WITH_NO_COMMENTS_BYTES.length);
-        // Change CEN file Header comment length so that the length will
-        // result in the offset pointing to a subsequent CEN file header
-        // resulting in an invalid comment
-        invalid_bytes[536] = 55;
-        Files.write(INVALID_CEN_COMMENT_LENGTH_JAR, invalid_bytes);
+        Zink.stream(VALID_CEN_COMMENT_LENGTH_JAR)
+                // Change CEN file Header comment length so that the length will
+                // result in the offset pointing to a subsequent CEN file header
+                // resulting in an invalid comment
+                .map(Cen.named("META-INF/MANIFEST.MF", cen -> cen.clen((short) 55)))
+                .collect(Zink.toFile(INVALID_CEN_COMMENT_LENGTH_JAR));
+    }
+
+    /**
+     * Create a valid Jar file with a META-INF/MANIFEST.MF entry
+     * and one additional regular entry 'Tennis.txt'
+     * @throws IOException
+     */
+    private static void createValidJar() throws IOException {
+        Manifest man = new Manifest();
+        man.getMainAttributes().putValue("Version", "1.0");
+        try (JarOutputStream jo = new JarOutputStream(
+                Files.newOutputStream(VALID_CEN_COMMENT_LENGTH_JAR),
+                man)) {
+            jo.putNextEntry(new ZipEntry("Tennis.txt"));
+            jo.write("Smash".getBytes(StandardCharsets.UTF_8));
+        }
     }
 
     /**
