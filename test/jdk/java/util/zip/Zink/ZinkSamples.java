@@ -76,12 +76,12 @@ public class ZinkSamples {
                 .map(Cen.named("entry1", cen -> cen.nlen((short) (42))))
                 .collect(Zink.toFile("invalid-cen-name-length.zip"));
 
-            // Check ZipFile
-            ZipException ex = expectThrows(ZipException.class, () -> {
-                try (ZipFile zf = new ZipFile(zip.toFile())) {
-                }
-            });
-            assertEquals(ex.getMessage(), "invalid CEN header (bad entry name or comment)");
+        // Check ZipFile
+        ZipException ex = expectThrows(ZipException.class, () -> {
+            try (ZipFile zf = new ZipFile(zip.toFile())) {
+            }
+        });
+        assertEquals(ex.getMessage(), "invalid CEN header (bad entry name or comment)");
     }
 
     @Test
