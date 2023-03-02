@@ -634,7 +634,7 @@ public abstract class Zink  implements Closeable
             if (id == ExtZip64.ID) { // Zip64 sizes
                 fields.add(ExtZip64.read(dsize, buffer));
             } else if (id == ExtTs.ID) { // Extended timestamp
-                fields.add(ExtTs.read(buffer));
+                fields.add(ExtTs.read(dsize, buffer));
             } else if (id == ExtWinNT.ID) { // Extended timestamp
                 fields.add(ExtWinNT.read(buffer));
             } else {
@@ -1002,7 +1002,7 @@ public abstract class Zink  implements Closeable
                     }
                     default -> {
                         byte[] data = e.data();
-                        row(" ext data", "%d bytes".formatted(data.length), data.length, HexFormat.ofDelimiter(" ").formatHex(data));
+                        row("ext data", "%d bytes".formatted(data.length), data.length, HexFormat.ofDelimiter(" ").formatHex(data));
                     }
                 }
             }
@@ -1106,6 +1106,7 @@ public abstract class Zink  implements Closeable
                 case 0x7075 -> "Info-ZIP Unicode Path Extra Field";
                 case 0x756e -> "ASi UNIX";
                 case 0x7855 -> "Info-ZIP UNIX (new)";
+                case 0x7875 -> "Info-ZIP UNIX (newer UID/GID)";
                 case 0xa11e -> "Data Stream Alignment (Apache Commons-Compress)";
                 case 0xa220 -> "Microsoft Open Packaging Growth Hint";
                 case 0xfd4a -> "SMS/QDOS";
