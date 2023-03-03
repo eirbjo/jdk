@@ -26,7 +26,10 @@ package jdk.test.lib.zink;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -188,7 +191,7 @@ public abstract class Zink  implements Closeable
     // Private implemetation members
     private static Collector<ZRec, Zink, Path> toFile(Path path, ZCollector collector) {
         try {
-            return new ZinkCollector<Path>(new StreamZink(collector, new FileOutputStream(path.toFile()))) {
+            return new ZinkCollector<Path>(new StreamZink(collector, new FileOutputStream(path.toFile()).getChannel())) {
                 @Override
                 public Function<Zink, Path> finisher() {
                     return (z) -> {
@@ -207,7 +210,7 @@ public abstract class Zink  implements Closeable
     }
     private static Collector<ZRec, Zink, byte[]> toByteArray(ZCollector collector) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        return new ZinkCollector<byte[]>(new StreamZink(collector, out)) {
+        return new ZinkCollector<byte[]>(new StreamZink(collector, Channels.newChannel(out))) {
             @Override
             public Function<Zink, byte[]> finisher() {
                 return (z) -> {
@@ -370,15 +373,15 @@ public abstract class Zink  implements Closeable
 
     private static class StreamZink extends Zink {
 
-        private final LEOutputStream out;
+        private final WritableByteChannel out;
         private final Consumer<ZRec> trace;
         private long written = 0L;
         private long offset;
 
         private final Function<ZRec, ZRec> offsetFixer;
 
-        StreamZink(ZCollector collector, OutputStream out) {
-            this.out = new LEOutputStream(out);
+        StreamZink(ZCollector collector, WritableByteChannel out) {
+            this.out = out;
             this.offsetFixer = collector.fixOffsets ? new OffsetFixer() : Function.identity();
             this.trace = collector.trace;
         }
@@ -401,9 +404,11 @@ public abstract class Zink  implements Closeable
         @Override
         void write(ZRec rec) throws IOException {
 
-            long location = out.written;
-            if (this.offset != location) {
-                throw new IllegalStateException("Offset does not match location");
+            if (out instanceof SeekableByteChannel seek) {
+                long location = seek.position();
+                if (this.offset != location) {
+                    throw new IllegalStateException("Offset does not match location");
+                }
             }
             offset += rec.sizeOf();
 
@@ -606,73 +611,6 @@ public abstract class Zink  implements Closeable
         }
     }
 
-    static class LEOutputStream extends FilterOutputStream {
-
-        private final byte[] bytes = new byte[Long.BYTES];
-        private final ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
-        private long written = 0L;
-
-        LEOutputStream(OutputStream out) {
-            super(out);
-        }
-
-        void writeShort(short num) throws IOException {
-            buffer.rewind().putShort(0, num);
-            out.write(bytes, 0, Short.BYTES);
-            written += Short.BYTES;
-        }
-
-        void writeInt(int num) throws IOException {
-            buffer.rewind().putInt(0, num);
-            out.write(bytes, 0, Integer.BYTES);
-            written += Integer.BYTES;
-        }
-
-        void writeLong(long num) throws IOException {
-            buffer.rewind().putLong(0, num);
-            out.write(bytes, 0, Long.BYTES);
-            written += Long.BYTES;
-        }
-
-        void writeInts(int... nums) throws IOException {
-            for (int num : nums) {
-                writeInt(num);
-            }
-        }
-
-        void writeShorts(short... nums) throws IOException {
-            for (short num : nums) {
-                writeShort(num);
-            }
-        }
-
-        void writeLongs(long... nums) throws IOException {
-            for (long num : nums) {
-                writeLong(num);
-            }
-        }
-
-        public void skip(long skip) throws IOException {
-            if (out instanceof FileOutputStream fos) {
-                FileChannel channel = fos.getChannel();
-                channel.position(channel.position() + skip);
-                written += skip;
-            } else {
-                throw new IllegalArgumentException("Cannot skip this stream");
-            }
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-            written++;
-            super.write(b);
-        }
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            written += len;
-            out.write(b, off, len);
-        }
-    }
 
     private static class LEInputWriter implements FileData.Writer {
 
@@ -686,7 +624,7 @@ public abstract class Zink  implements Closeable
             this.len = len;
         }
         @Override
-        public void write(OutputStream out) throws IOException {
+        public void write(WritableByteChannel out) throws IOException {
             long orig = input.position();
             input.position(off);
             try {
@@ -702,7 +640,7 @@ public abstract class Zink  implements Closeable
                         len = (int) rem;
                     }
                     int read = input.read(buf, 0, len);
-                    out.write(buf, 0, read);
+                    out.write(ByteBuffer.wrap(buf, 0, read));
                     rem -= read;
                 }
             } finally {

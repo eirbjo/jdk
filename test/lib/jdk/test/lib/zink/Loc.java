@@ -24,6 +24,9 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
@@ -120,17 +123,28 @@ public record Loc(int sig,
         };
     }
 
-    void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(sig);
-        out.writeShorts(version, flags, method, time, date);
-        out.writeInts(crc, csize, size);
-        out.writeShorts(nlen, elen);
-        out.write(name);
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(sig);
+        buf.putShort(version);
+        buf.putShort(flags);
+        buf.putShort(method);
+        buf.putShort(time);
+        buf.putShort(date);
+        buf.putInt(crc);
+        buf.putInt(csize);
+        buf.putInt(size);
+        buf.putShort(nlen);
+        buf.putShort(elen);
+        buf.put(name);
+
         for (ExtField e : extra) {
             byte[] data = e.data();
-            out.writeShorts(e.id(), e.dsize());
-            out.write(data);
+            buf.putShort(e.id());
+            buf.putShort(e.dsize());
+            buf.put(data);
         }
+        out.write(buf.flip());
     }
 
     public static Function<ZRec, ZRec> map(Function<Loc, Loc> mapper) {
@@ -214,7 +228,7 @@ public record Loc(int sig,
     }
 
     private short sizeOf(ExtField[] extra) {
-        return (short) Stream.of(extra).mapToInt(e -> e.data().length + 4).sum();
+        return (short) Stream.of(extra).mapToInt(e -> e.dsize() + 4).sum();
     }
     public <T extends ExtField> Optional<T> extra(Class<T> type) {
         return Stream.of(extra)

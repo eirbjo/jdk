@@ -26,6 +26,8 @@ import jdk.test.lib.zink.*;
 import org.testng.annotations.Test;
 
 import java.io.*;
+import java.nio.channels.Channel;
+import java.nio.channels.Channels;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -64,10 +66,10 @@ public class ZinkTests {
 
         byte[] zip = smallZip();
 
-        byte[] transformed = Zink.stream(zip)
-                .collect(Zink.toByteArray());
+        Path transformed = Zink.stream(zip)
+                .collect(Zink.toFile("transformed"));
 
-        assertEquals(transformed, zip);
+        assertEquals(Files.readAllBytes(transformed), zip);
 
     }
 
@@ -456,7 +458,7 @@ public class ZinkTests {
         {
             FileData data = (FileData) recs.get(1);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            data.writer().write(out);
+            data.writer().write(Channels.newChannel(out));
             byte[] buf = out.toByteArray();
             int mismatch = Arrays.mismatch(deflated, 0, deflated.length,
                     buf, 0, buf.length);
@@ -482,7 +484,7 @@ public class ZinkTests {
         {
             FileData data = (FileData) recs.get(4);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            data.writer().write(out);
+            data.writer().write(Channels.newChannel(out));
             byte[] buf = out.toByteArray();
             assertEquals(new String(buf, StandardCharsets.UTF_8),
                     uncompressedEntryContentText);
@@ -632,7 +634,7 @@ public class ZinkTests {
         {
             FileData data = (FileData) recs.get(1);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            data.writer().write(out);
+            data.writer().write(Channels.newChannel(out));
             byte[] buf = out.toByteArray();
             assertEquals(new String(buf, StandardCharsets.UTF_8), contentText);
         }

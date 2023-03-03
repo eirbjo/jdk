@@ -24,6 +24,9 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -56,12 +59,18 @@ public record Eoc(short thisDisk,
         return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, comment);
     }
 
-    void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(SIG);
-        out.writeShorts(thisDisk, startDisk, diskEntries, totalEntries);
-        out.writeInts(cenSize, cenOffset);
-        out.writeShort((short) comment.length);
-        out.write(comment);
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(SIG);
+        buf.putShort(thisDisk);
+        buf.putShort(startDisk);
+        buf.putShort(diskEntries);
+        buf.putShort(totalEntries);
+        buf.putInt(cenSize);
+        buf.putInt(cenOffset);
+        buf.putShort((short) comment.length);
+        buf.put(comment);
+        out.write(buf.flip());
     }
 
 

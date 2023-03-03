@@ -24,6 +24,9 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -69,16 +72,28 @@ public record Eoc64Rec(long size,
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
-    void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(SIG);
-        out.writeLong(size);
-        out.writeShorts(version, extractVersion);
-        out.writeInts(thisDisk, startDisk);
-        out.writeLongs(numEntries, totalEntries, cenSize, cenOff);
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(SIG);
+        buf.putLong(size);
+        buf.putShort(version);
+        buf.putShort(extractVersion);
+        buf.putInt(thisDisk);
+        buf.putInt(startDisk);
+
+        buf.putLong(numEntries);
+        buf.putLong(totalEntries);
+        buf.putLong(cenSize);
+        buf.putLong(cenOff);
+
         for (ExtField e : extra) {
-            out.writeShorts(e.id(), e.dsize());
-            out.write(e.data());
+            byte[] data = e.data();
+            buf.putShort(e.id());
+            buf.putShort(e.dsize());
+            buf.put(data);
         }
+
+        out.write(buf.flip());
     }
 
     public static Eoc64Rec of(Eoc eoc) {

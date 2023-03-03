@@ -24,6 +24,9 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -110,19 +113,34 @@ public record Cen(int sig,
     }
 
     // Write this record to an OutputStream
-    void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(sig);
-        out.writeShorts(version, extractVersion, flags, method, time, date);
-        out.writeInts(crc, csize, size);
-        out.writeShorts(nlen, elen, clen, diskStart, internalAttr);
-        out.writeInts(externalAttr, locOff);
-        out.write(name);
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(sig);
+        buf.putShort(version);
+        buf.putShort(extractVersion);
+        buf.putShort(flags);
+        buf.putShort(method);
+        buf.putShort(time);
+        buf.putShort(date);
+        buf.putInt(crc);
+        buf.putInt(csize);
+        buf.putInt(size);
+        buf.putShort(nlen);
+        buf.putShort(elen);
+        buf.putShort(clen);
+        buf.putShort(diskStart);
+        buf.putShort(internalAttr);
+        buf.putInt(externalAttr);
+        buf.putInt(locOff);
+        buf.put(name);
         for (ExtField e : extra) {
-            out.writeShort(e.id());
-            out.writeShort(e.dsize());
-            out.write(e.data());
+            byte[] data = e.data();
+            buf.putShort(e.id());
+            buf.putShort(e.dsize());
+            buf.put(data);
         }
-        out.write(comment);
+        buf.put(comment);
+        out.write(buf.flip());
     }
 
     public static Function<ZRec, ZRec> rename(Function<String, String> renamer) {

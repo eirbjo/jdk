@@ -24,6 +24,9 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
 
 /**
@@ -53,16 +56,22 @@ public record Desc(boolean signed, boolean zip64, int crc, long csize, long size
         return new Desc(signed, zip64, crc, csize, size);
     }
 
-    void write(Zink.LEOutputStream out) throws IOException {
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf())
+                .order(ByteOrder.LITTLE_ENDIAN);
         if(signed) {
-            out.writeInt(SIG);
+            buf.putInt(SIG);
         }
-        out.writeInt(crc);
+        buf.putInt(crc);
         if (zip64) {
-            out.writeLongs(csize, size);
+            buf.putLong(csize);
+            buf.putLong(size);
         } else {
-            out.writeInts((int) csize, (int) size);
+            buf.putInt((int) csize);
+            buf.putInt((int) size);
         }
+        buf.flip();
+        out.write(buf);
     }
 
     public static Function<ZRec, ZRec> map(Function<Desc, Desc> mapper) {
