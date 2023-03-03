@@ -106,6 +106,16 @@ Zink.stream(smallZip())
         .collect(Zink.toByteArray());
 ```
 
+Loc and Cen has convenience methods to filter entries (Loc, Desc, FileData and Cen) 
+by name:
+
+````java
+Zink.stream(zipWithEntries("a", "b"))
+          // Remove Loc "a" with associated Desc and FileData
+          .filter(Loc.remove(Loc.named("a")))
+          // Remove Cen "a"
+          .filter(Cen.remove(Cen.named("a")))
+````
 ### Concatenating streams
 Streams may be concatenated, forming a new stream with the contents of the first stream
 followed by the contents of the second stream:
