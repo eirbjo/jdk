@@ -222,6 +222,108 @@ public abstract class Zink  implements Closeable
         };
     }
 
+    /**
+     * Return a ZRec stream combining the entries of first stream followed by the entries of the second stream
+     * @param first the first stream
+     * @param second the second stream
+     * @return a stream with the entries of the first stream followed by the entries of the second stream
+     */
+    public static Stream<ZRec> concat(Stream<ZRec> first, Stream<ZRec> second) {
+
+        ConcatZpliterator concatZpliterator = new ConcatZpliterator(first, second);
+
+        return StreamSupport.stream(concatZpliterator, false);
+    }
+
+    private static class ConcatZpliterator extends Spliterators.AbstractSpliterator<ZRec> implements Consumer<ZRec> {
+
+        private final Spliterator<ZRec> a;
+        private final Spliterator<ZRec> b;
+        private ZRec rec;
+        private Cen aCen;
+        private Cen bCen;
+        private Eoc aEoc;
+        private boolean aCenFound;
+        private boolean bCenFound;
+        private boolean aEocFound;
+        private boolean bEocFound;
+
+        ConcatZpliterator(Stream<ZRec> aStream, Stream<ZRec> bStream) {
+            super(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.DISTINCT |
+                    Spliterator.IMMUTABLE | Spliterator.NONNULL);
+            a = aStream.spliterator();
+            b = bStream.spliterator();
+        }
+
+        @Override
+        public boolean tryAdvance(Consumer<? super ZRec> action) {
+            if (!aCenFound) {
+                if (a.tryAdvance(this)) {
+                    if (rec instanceof Cen cen) {
+                        aCen = cen;
+                        aCenFound = true;
+                    } else {
+                        action.accept(rec);
+                        return true;
+                    }
+                } else {
+                    return false;
+                }
+            }
+
+            if (!bCenFound) {
+                if (b.tryAdvance(this)) {
+                    if (rec instanceof Cen cen) {
+                        bCen = cen;
+                        action.accept(aCen);
+                        bCenFound = true;
+                    } else {
+                        action.accept(rec);
+                    }
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            if (!aEocFound) {
+                if (a.tryAdvance(this)) {
+                    if (rec instanceof Eoc eoc) {
+                        aEoc = eoc;
+                        aEocFound = true;
+                        action.accept(bCen);
+                    } else {
+                        action.accept(rec);
+                    }
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            if (!bEocFound) {
+                if (b.tryAdvance(this)) {
+                    if (rec instanceof Eoc eoc) {
+                        bEocFound = true;
+                        action.accept(eoc.concat(aEoc));
+                        return false;
+                    } else {
+                        action.accept(rec);
+                        return true;
+                    }
+                } else {
+                    return false;
+                }
+            }
+
+            return false;
+        }
+
+
+        @Override
+        public void accept(ZRec zRec) {
+            rec = zRec;
+        }
+    }
 
     private abstract static class ZinkCollector<R> implements Collector<ZRec, Zink, R> {
         private final Zink zink;

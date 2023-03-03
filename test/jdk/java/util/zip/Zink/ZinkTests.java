@@ -111,6 +111,48 @@ public class ZinkTests {
         Zink.stream(out.toByteArray())
                 .collect(Zink.toByteArray());
     }
+
+    @Test
+    public void shouldConcatStream() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(out)) {
+            zo.putNextEntry(new ZipEntry("a"));
+            zo.write("a".getBytes(StandardCharsets.UTF_8));
+            zo.putNextEntry(new ZipEntry("b"));
+            zo.write("b".getBytes(StandardCharsets.UTF_8));
+        }
+
+        ByteArrayOutputStream out2 = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(out2)) {
+            zo.putNextEntry(new ZipEntry("c"));
+            zo.write("c".getBytes(StandardCharsets.UTF_8));
+            zo.putNextEntry(new ZipEntry("d"));
+            zo.write("d".getBytes(StandardCharsets.UTF_8));
+        }
+
+        Path collected = Zink.concat(Zink.stream(out.toByteArray()), Zink.stream(out2.toByteArray()))
+                .collect(Zink.collect()
+                        .trace()
+                        .toFile("concat.zip"));
+
+        try (ZipFile zf = new ZipFile(collected.toFile())) {
+            List<? extends ZipEntry> entries = Collections.list(zf.entries());
+            assertEquals(entries.size(), 4);
+            assertEntry(zf, "a");
+            assertEntry(zf, "b");
+            assertEntry(zf, "c");
+            assertEntry(zf, "d");
+        }
+    }
+
+    private void assertEntry(ZipFile zf, String name) throws IOException {
+        ZipEntry entry = zf.getEntry(name);
+        assertNotNull(entry);
+        try (InputStream in = zf.getInputStream(entry)) {
+            assertEquals(in.readAllBytes(), name.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
     @Test
     public void identityTransformsShouldProduceSameBytes() throws IOException {
 
