@@ -122,14 +122,4 @@ public record Eoc(short thisDisk,
     public short clen() {
         return (short) comment.length;
     }
-
-    public Eoc concat(Eoc other) {
-        return new Eoc(thisDisk,
-                startDisk,
-                (short) (diskEntries + other.diskEntries),
-                (short) (totalEntries + other.totalEntries),
-                cenSize + other.cenSize,
-                cenOffset + other.cenOffset,
-                comment);
-    }
 }

@@ -304,7 +304,14 @@ public abstract class Zink  implements Closeable
                 if (b.tryAdvance(this)) {
                     if (rec instanceof Eoc eoc) {
                         bEocFound = true;
-                        action.accept(eoc.concat(aEoc));
+                        Eoc merged = new Eoc(aEoc.thisDisk(),
+                                aEoc.startDisk(),
+                                (short) (aEoc.diskEntries() + eoc.diskEntries()),
+                                (short) (aEoc.totalEntries() + eoc.totalEntries()),
+                                aEoc.cenSize() + eoc.cenSize(),
+                                (int) (aEoc.cenOffset() + eoc.cenOffset()),
+                                aEoc.comment());
+                        action.accept(merged);
                         return false;
                     } else {
                         action.accept(rec);

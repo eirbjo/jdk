@@ -130,17 +130,23 @@ public class ZinkTests {
             zo.write("d".getBytes(StandardCharsets.UTF_8));
         }
 
-        Path collected = Zink.concat(Zink.stream(out.toByteArray()), Zink.stream(out2.toByteArray()))
-                .collect(Zink.collect()
-                        .trace()
-                        .toFile("concat.zip"));
+        Path collected = Zink.concat(
+                        Zink.stream(out.toByteArray()),
+                        Zink.stream(out2.toByteArray())
+                                .filter(r -> switch (r) {
+                                    case Loc loc when loc.isNamed("c".getBytes(StandardCharsets.UTF_8)) -> false;
+                                    case Cen cen when cen.isNamed("c".getBytes(StandardCharsets.UTF_8)) -> false;
+                                    default -> true;
+                                })
+        ).collect(Zink.collect()
+                .trace()
+                .toFile("concat.zip"));
 
         try (ZipFile zf = new ZipFile(collected.toFile())) {
             List<? extends ZipEntry> entries = Collections.list(zf.entries());
-            assertEquals(entries.size(), 4);
+            assertEquals(entries.size(), 3);
             assertEntry(zf, "a");
             assertEntry(zf, "b");
-            assertEntry(zf, "c");
             assertEntry(zf, "d");
         }
     }
