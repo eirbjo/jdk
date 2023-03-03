@@ -130,7 +130,7 @@ public class ZinkTests {
             zo.write("d".getBytes(StandardCharsets.UTF_8));
         }
 
-        Path collected = Zink.concat(
+        Path concat = Zink.concat(
                 Zink.stream(out.toByteArray()),
                 Zink.stream(out2.toByteArray())
                         // Remove Loc named "c" with associated Desc and FileData
@@ -141,12 +141,23 @@ public class ZinkTests {
                 .trace()
                 .toFile("concat.zip"));
 
-        try (ZipFile zf = new ZipFile(collected.toFile())) {
+        try (ZipFile zf = new ZipFile(concat.toFile())) {
             List<? extends ZipEntry> entries = Collections.list(zf.entries());
             assertEquals(entries.size(), 3);
             assertEntry(zf, "a");
             assertEntry(zf, "b");
             assertEntry(zf, "d");
+        }
+        try (ZipInputStream zi = new ZipInputStream(Files.newInputStream(concat))) {
+            Set<String> names = new HashSet<>();
+            ZipEntry entry;
+            while ((entry = zi.getNextEntry()) != null) {
+                names.add(entry.getName());
+            }
+            assertEquals(names.size(), 3);
+            assertTrue(names.contains("a"));
+            assertTrue(names.contains("b"));
+            assertTrue(names.contains("d"));
         }
     }
 
