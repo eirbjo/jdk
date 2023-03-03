@@ -30,6 +30,7 @@ import java.time.*;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static jdk.test.lib.zink.Zink.*;
@@ -97,6 +98,25 @@ public record Loc(int sig,
         }
         return loc;
     }
+
+    public static Predicate<? super ZRec> filter(Predicate<Loc> locPredicate) {
+        return new Predicate<ZRec>() {
+            Loc currentLoc;
+            @Override
+            public boolean test(ZRec zRec) {
+                return switch (zRec) {
+                    case Loc loc -> {
+                        currentLoc = loc;
+                        yield locPredicate.test(currentLoc);
+                    }
+                    case Desc desc -> locPredicate.test(currentLoc);
+                    case FileData fileData -> locPredicate.test(currentLoc);
+                    default -> true;
+                };
+            }
+        };
+    }
+
     void write(Zink.LEOutputStream out) throws IOException {
         out.writeInt(sig);
         out.writeShorts(version, flags, method, time, date);

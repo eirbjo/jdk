@@ -32,6 +32,7 @@ import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static jdk.test.lib.zink.Zink.*;
@@ -95,6 +96,13 @@ public record Cen(int sig,
         ExtField[] extFields = parseExt(extra);
 
         return new Cen(SIG, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extFields, comment);
+    }
+
+    public static Predicate<? super ZRec> filter(Predicate<Cen> cenPredicate) {
+        return r -> switch (r) {
+            case Cen cen -> cenPredicate.test(cen);
+            default -> true;
+        };
     }
 
     // Write this record to an OutputStream

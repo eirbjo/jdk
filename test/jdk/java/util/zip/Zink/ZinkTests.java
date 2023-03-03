@@ -155,26 +155,21 @@ public class ZinkTests {
     @Test
     public void shouldUpdateEocCount() throws IOException {
         final byte[] name = "entry".getBytes(StandardCharsets.UTF_8);
-        Predicate<ZRec> filter = new Predicate<ZRec>() {
-            Loc currentLoc;
-            @Override
-            public boolean test(ZRec zRec) {
-                return switch (zRec) {
-                    case Loc loc -> {
-                        currentLoc = loc;
-                        yield currentLoc.isNamed(name);
-                    }
-                    case Desc desc -> currentLoc.isNamed(name);
-                    case FileData fileData -> currentLoc.isNamed(name);
-                    case Cen cen when cen.isNamed(name) -> false;
-                    default -> true;
-                };
-            }
-        };
 
-        byte[] zip = Zink.stream(smallZip())
-                .filter(filter)
-                .collect(Zink.collect().trace().toByteArray());
+        Path zip = Zink.stream(smallZip())
+                // Filter out Loc, Desc, FileData for "entry"
+                .filter(Loc.filter(loc -> !loc.isNamed(name)))
+                // Filter out Cen for "entry"
+                .filter(Cen.filter(cen -> !cen.isNamed(name)))
+                .collect(Zink.collect().trace().toFile("filtered.zip"));
+
+        try (ZipFile zf = new ZipFile(zip.toFile())) {
+            assertEquals(zf.size(), 1);
+            // "entry" should be removed
+            assertNull(zf.getEntry("entry"));
+            // "uncompressed" should remain
+            assertEntry(zf, "uncompressed");
+        }
 
         Eoc eoc = Zink.stream(zip)
                 .peek(r -> System.out.println(r))
