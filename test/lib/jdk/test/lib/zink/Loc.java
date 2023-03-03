@@ -99,7 +99,10 @@ public record Loc(int sig,
         return loc;
     }
 
-    public static Predicate<? super ZRec> filter(Predicate<Loc> locPredicate) {
+    public static Predicate<? super ZRec> remove(Predicate<Loc> predicate) {
+        return filter(predicate.negate());
+    }
+    public static Predicate<? super ZRec> filter(Predicate<Loc> predicate) {
         return new Predicate<ZRec>() {
             Loc currentLoc;
             @Override
@@ -107,10 +110,10 @@ public record Loc(int sig,
                 return switch (zRec) {
                     case Loc loc -> {
                         currentLoc = loc;
-                        yield locPredicate.test(currentLoc);
+                        yield predicate.test(currentLoc);
                     }
-                    case Desc desc -> locPredicate.test(currentLoc);
-                    case FileData fileData -> locPredicate.test(currentLoc);
+                    case Desc desc -> predicate.test(currentLoc);
+                    case FileData fileData -> predicate.test(currentLoc);
                     default -> true;
                 };
             }

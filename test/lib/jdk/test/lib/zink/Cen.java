@@ -98,9 +98,13 @@ public record Cen(int sig,
         return new Cen(SIG, version, extractVersion, flags, method, time, date, crc, csize, size, nlen, elen, clen, diskStart, internalAttr, externalAttr, locOff, name, extFields, comment);
     }
 
-    public static Predicate<? super ZRec> filter(Predicate<Cen> cenPredicate) {
+    public static Predicate<? super ZRec> remove(Predicate<Cen> predicate) {
+        return filter(predicate.negate());
+    }
+
+    public static Predicate<? super ZRec> filter(Predicate<Cen> predicate) {
         return r -> switch (r) {
-            case Cen cen -> cenPredicate.test(cen);
+            case Cen cen -> predicate.test(cen);
             default -> true;
         };
     }

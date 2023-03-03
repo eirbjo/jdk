@@ -114,29 +114,28 @@ public class ZinkTests {
 
     @Test
     public void shouldConcatStream() throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try (ZipOutputStream zo = new ZipOutputStream(out)) {
+        ByteArrayOutputStream first = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(first)) {
             zo.putNextEntry(new ZipEntry("a"));
             zo.write("a".getBytes(StandardCharsets.UTF_8));
             zo.putNextEntry(new ZipEntry("b"));
             zo.write("b".getBytes(StandardCharsets.UTF_8));
         }
 
-        ByteArrayOutputStream out2 = new ByteArrayOutputStream();
-        try (ZipOutputStream zo = new ZipOutputStream(out2)) {
+        ByteArrayOutputStream second = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(second)) {
             zo.putNextEntry(new ZipEntry("c"));
             zo.write("c".getBytes(StandardCharsets.UTF_8));
             zo.putNextEntry(new ZipEntry("d"));
             zo.write("d".getBytes(StandardCharsets.UTF_8));
         }
 
-        Path concat = Zink.concat(
-                Zink.stream(out.toByteArray()),
-                Zink.stream(out2.toByteArray())
+        Path concat = Zink.concat(Zink.stream(first.toByteArray()),
+                Zink.stream(second.toByteArray())
                         // Remove Loc named "c" with associated Desc and FileData
-                        .filter(Loc.filter(Loc.named("c").negate()))
+                        .filter(Loc.remove(Loc.named("c")))
                         // Remove Cen named "c"
-                        .filter(Cen.filter(Cen.named("c").negate()))
+                        .filter(Cen.remove(Cen.named("c")))
         ).collect(Zink.collect()
                 .trace()
                 .toFile("concat.zip"));
@@ -167,9 +166,9 @@ public class ZinkTests {
 
         Path zip = Zink.stream(smallZip())
                 // Filter out Loc, Desc, FileData for "entry"
-                .filter(Loc.filter(Loc.named("entry").negate()))
+                .filter(Loc.remove(Loc.named("entry")))
                 // Filter out Cen for "entry"
-                .filter(Cen.filter(Cen.named("entry").negate()))
+                .filter(Cen.remove(Cen.named("entry")))
                 .collect(Zink.collect().trace().toFile("filtered.zip"));
 
         try (ZipFile zf = new ZipFile(zip.toFile())) {
