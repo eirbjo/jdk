@@ -114,31 +114,14 @@ public class ZinkTests {
 
     @Test
     public void shouldConcatStream() throws IOException {
-        ByteArrayOutputStream first = new ByteArrayOutputStream();
-        try (ZipOutputStream zo = new ZipOutputStream(first)) {
-            zo.putNextEntry(new ZipEntry("a"));
-            zo.write("a".getBytes(StandardCharsets.UTF_8));
-            zo.putNextEntry(new ZipEntry("b"));
-            zo.write("b".getBytes(StandardCharsets.UTF_8));
-        }
 
-        ByteArrayOutputStream second = new ByteArrayOutputStream();
-        try (ZipOutputStream zo = new ZipOutputStream(second)) {
-            zo.putNextEntry(new ZipEntry("c"));
-            zo.write("c".getBytes(StandardCharsets.UTF_8));
-            zo.putNextEntry(new ZipEntry("d"));
-            zo.write("d".getBytes(StandardCharsets.UTF_8));
-        }
-
-        Path concat = Zink.concat(Zink.stream(first.toByteArray()),
-                Zink.stream(second.toByteArray())
-                        // Remove Loc named "c" with associated Desc and FileData
+        Path concat = Zink.concat(Zink.stream(zipWithEntries("a", "b")),
+                Zink.stream(zipWithEntries("c", "d"))
+                        // Remove Loc "c" with associated Desc and FileData
                         .filter(Loc.remove(Loc.named("c")))
-                        // Remove Cen named "c"
+                        // Remove Cen "c"
                         .filter(Cen.remove(Cen.named("c")))
-        ).collect(Zink.collect()
-                .trace()
-                .toFile("concat.zip"));
+        ).collect(Zink.toFile("concat.zip"));
 
         try (ZipFile zf = new ZipFile(concat.toFile())) {
             List<? extends ZipEntry> entries = Collections.list(zf.entries());
@@ -158,6 +141,18 @@ public class ZinkTests {
             assertTrue(names.contains("b"));
             assertTrue(names.contains("d"));
         }
+    }
+
+    private static byte[] zipWithEntries(String... names) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(out)) {
+            for (String name : names) {
+                zo.putNextEntry(new ZipEntry(name));
+                zo.write(name.getBytes(StandardCharsets.UTF_8));
+            }
+        }
+
+        return out.toByteArray();
     }
 
     @Test
