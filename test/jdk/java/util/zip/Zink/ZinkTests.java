@@ -131,13 +131,12 @@ public class ZinkTests {
         }
 
         Path collected = Zink.concat(
-                        Zink.stream(out.toByteArray()),
-                        Zink.stream(out2.toByteArray())
-                                .filter(r -> switch (r) {
-                                    case Loc loc when loc.isNamed("c".getBytes(StandardCharsets.UTF_8)) -> false;
-                                    case Cen cen when cen.isNamed("c".getBytes(StandardCharsets.UTF_8)) -> false;
-                                    default -> true;
-                                })
+                Zink.stream(out.toByteArray()),
+                Zink.stream(out2.toByteArray())
+                        // Remove Loc named "c" with associated Desc and FileData
+                        .filter(Loc.filter(Loc.named("c").negate()))
+                        // Remove Cen named "c"
+                        .filter(Cen.filter(Cen.named("c").negate()))
         ).collect(Zink.collect()
                 .trace()
                 .toFile("concat.zip"));
