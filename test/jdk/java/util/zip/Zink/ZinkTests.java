@@ -38,6 +38,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.*;
 
@@ -149,6 +150,38 @@ public class ZinkTests {
             assertEntry(zf, "b");
             assertEntry(zf, "d");
         }
+    }
+
+    @Test
+    public void shouldUpdateEocCount() throws IOException {
+        final byte[] name = "entry".getBytes(StandardCharsets.UTF_8);
+        Predicate<ZRec> filter = new Predicate<ZRec>() {
+            Loc currentLoc;
+            @Override
+            public boolean test(ZRec zRec) {
+                return switch (zRec) {
+                    case Loc loc -> {
+                        currentLoc = loc;
+                        yield currentLoc.isNamed(name);
+                    }
+                    case Desc desc -> currentLoc.isNamed(name);
+                    case FileData fileData -> currentLoc.isNamed(name);
+                    case Cen cen when cen.isNamed(name) -> false;
+                    default -> true;
+                };
+            }
+        };
+
+        byte[] zip = Zink.stream(smallZip())
+                .filter(filter)
+                .collect(Zink.collect().trace().toByteArray());
+
+        Eoc eoc = Zink.stream(zip)
+                .peek(r -> System.out.println(r))
+                .flatMap(Eoc.match())
+                .findAny().orElseThrow();
+        assertEquals(eoc.diskEntries(), 1);
+        assertEquals(eoc.totalEntries(), 1);
     }
 
     private void assertEntry(ZipFile zf, String name) throws IOException {

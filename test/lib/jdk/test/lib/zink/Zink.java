@@ -943,7 +943,8 @@ public abstract class Zink  implements Closeable
                     // Record CEN size
                     cenSize = currentOffset - cenOffset;
                     // Adust CEN size and offset
-                    yield eoc64.cenOff(cenOffset).cenSize(cenSize);
+                    yield eoc64.cenOff(cenOffset).cenSize(cenSize)
+                            .totalEntries(cenIdx);
                 }
                 case Eoc64Loc eoc64Loc -> {
                     yield eoc64Loc.eocOff(eoc64Off);
@@ -953,7 +954,10 @@ public abstract class Zink  implements Closeable
                         cenSize = currentOffset - cenOffset;
                     }
                     // Adust CEN size and offset
-                    yield eoc.cenOffset((int) cenOffset).cenSize((int) cenSize);
+                    yield eoc.cenOffset((int) cenOffset)
+                            .cenSize((int) cenSize)
+                            .diskEntries((short) cenIdx)
+                            .totalEntries((short) cenIdx);
                 }
                 default -> rec;
             };
