@@ -155,12 +155,15 @@ public record Loc(int sig,
         return rename(renamer).andThen(Cen.rename(renamer));
     }
 
-    public static Function<ZRec, ZRec> named(String name, Function<Loc, Loc> mapper) {
-        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+    public static Function<ZRec, ZRec> map(Predicate<Loc> locPredicate, Function<Loc, Loc> mapper) {
         return r -> switch (r) {
-            case Loc loc when loc.isNamed(nameBytes)-> mapper.apply(loc);
+            case Loc loc when locPredicate.test(loc) -> mapper.apply(loc);
             default -> r;
         };
+    }
+    public static Predicate<Loc> named(String name) {
+        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+        return l -> l.isNamed(nameBytes);
     }
 
     public boolean isZip64() {

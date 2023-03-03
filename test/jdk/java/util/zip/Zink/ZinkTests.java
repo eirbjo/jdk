@@ -38,7 +38,6 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.*;
 
@@ -158,9 +157,9 @@ public class ZinkTests {
 
         Path zip = Zink.stream(smallZip())
                 // Filter out Loc, Desc, FileData for "entry"
-                .filter(Loc.filter(loc -> !loc.isNamed(name)))
+                .filter(Loc.filter(Loc.named("entry").negate()))
                 // Filter out Cen for "entry"
-                .filter(Cen.filter(cen -> !cen.isNamed(name)))
+                .filter(Cen.filter(Cen.named("entry").negate()))
                 .collect(Zink.collect().trace().toFile("filtered.zip"));
 
         try (ZipFile zf = new ZipFile(zip.toFile())) {
@@ -297,8 +296,8 @@ public class ZinkTests {
 
                 // Inject ExtTs field into extra of Loc and Cen
         Path zip = Zink.stream(smallZip())
-                .map(Loc.named("entry", loc -> loc.extra(extra)))
-                .map(Cen.named("entry", cen -> cen.extra(extra)))
+                .map(Loc.map(Loc.named("entry"), loc -> loc.extra(extra)))
+                .map(Cen.map(Cen.named("entry"), cen -> cen.extra(extra)))
                 .collect(Zink
                         .collect().trace()
                         .toFile(Path.of("extended-ts.zip")));
@@ -376,8 +375,8 @@ public class ZinkTests {
 
         // Inject the WinNT extra field into Loc and Cen
         Path withTs = Zink.stream(smallZip())
-                .map(Loc.named("entry", loc -> loc.extra(extra)))
-                .map(Cen.named("entry", cen -> cen.extra(extra)))
+                .map(Loc.map(Loc.named("entry"), loc -> loc.extra(extra)))
+                .map(Cen.map(Cen.named("entry"), cen -> cen.extra(extra)))
                 .collect(Zink.collect()
                         .trace()
                         .toFile(Path.of("extended-winnt.zip")));

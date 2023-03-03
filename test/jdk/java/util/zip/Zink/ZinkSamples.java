@@ -32,7 +32,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.*;
 
@@ -73,7 +72,7 @@ public class ZinkSamples {
 
         // Make the comment length in the CEN overflow into the next CEN
         Path zip = Zink.stream(twoEntryZip())
-                .map(Cen.named("entry1", cen -> cen.clen((short) (42))))
+                .map(Cen.map(Cen.named("entry1"), cen -> cen.clen((short) (42))))
                 .collect(Zink.toFile("invalid-cen-comment-length.zip"));
 
         // Check ZipFile
@@ -89,7 +88,7 @@ public class ZinkSamples {
 
         // Make the extra length in the CEN overflow into the next CEN
         Path zip = Zink.stream(twoEntryZip())
-                .map(Cen.named("entry1", cen -> cen.elen((short) (42))))
+                .map(Cen.map(Cen.named("entry1"), cen -> cen.elen((short) (42))))
                 .collect(Zink.toFile("invalid-cen-extra-length.zip"));
 
         // Check ZipFile
@@ -105,7 +104,7 @@ public class ZinkSamples {
 
         // Make the name length in the CEN overflow into the next CEN
         Path zip = Zink.stream(twoEntryZip())
-                .map(Cen.named("entry1", cen -> cen.nlen((short) (42))))
+                .map(Cen.map(Cen.named("entry1"), cen -> cen.nlen((short) (42))))
                 .collect(Zink.toFile("invalid-cen-name-length.zip"));
 
         // Check ZipFile
@@ -121,7 +120,7 @@ public class ZinkSamples {
 
         // Make the name length in the CEN overflow into the next CEN
         Path zip = Zink.stream(twoEntryZip())
-                .map(Loc.named("entry1", loc -> loc.nlen((short) (loc.nlen()-1))))
+                .map(Loc.map(Loc.named("entry1"), loc -> loc.nlen((short) (loc.nlen()-1))))
                 .collect(Zink.toFile("invalid-loc-name-length.zip"));
 
         // Check ZipInputStream
@@ -141,7 +140,7 @@ public class ZinkSamples {
 
         // Make the extra length in the LOC overflow into the next File data
         Path zip = Zink.stream(twoEntryZip())
-                .map(Loc.named("entry1", loc -> loc.elen((short) (42))))
+                .map(Loc.map(Loc.named("entry1"), loc -> loc.elen((short) (42))))
                 .collect(Zink.toFile("invalid-loc-extra-length.zip"));
 
         // Check ZipFile
@@ -161,7 +160,7 @@ public class ZinkSamples {
 
         // Replace the LOC sig with an invalid one
         Path zip = Zink.stream(twoEntryZip())
-                .map(Loc.named("entry1", loc -> loc.sig(0xCAFEBABE)))
+                .map(Loc.map(Loc.named("entry1"), loc -> loc.sig(0xCAFEBABE)))
                 .collect(Zink.toFile("invalid-loc-sig.zip"));
 
         // Check ZipFile
@@ -184,7 +183,7 @@ public class ZinkSamples {
 
         // Replace the CEN sig with an invalid one
         Path zip = Zink.stream(twoEntryZip())
-                .map(Cen.named("entry1", cen -> cen.sig(0xCAFEBABE)))
+                .map(Cen.map(Cen.named("entry1"), cen -> cen.sig(0xCAFEBABE)))
                 .collect(Zink.toFile("invalid-cen-sig.zip"));
 
         // Check ZipFile

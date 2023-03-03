@@ -135,12 +135,16 @@ public record Cen(int sig,
         };
     }
 
-    public static Function<ZRec, ZRec> named(String name, Function<Cen, Cen> mapper) {
-        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+    public static Function<ZRec, ZRec> map(Predicate<Cen> cenPredicate, Function<Cen, Cen> mapper) {
         return r -> switch (r) {
-            case Cen cen when cen.isNamed(nameBytes)-> mapper.apply(cen);
+            case Cen cen when cenPredicate.test(cen) -> mapper.apply(cen);
             default -> r;
         };
+    }
+
+    public static Predicate<Cen> named(String name) {
+        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+        return c -> c.isNamed(nameBytes);
     }
 
     private short sizeOf(ExtField[] extra) {
