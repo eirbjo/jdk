@@ -26,6 +26,7 @@ package jdk.test.lib.zink;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
 
@@ -36,10 +37,16 @@ public record Eoc64Loc(int eocDisk, long eocOff, int totalDisks) implements ZRec
     static final int SIG = 0x07064b50;
     private static final int SIZE = 20;
 
-    static ZRec read(Zink.LEInput input) {
-        int eocDisk = input.getInt();
-        long cenOff = input.getLong();
-        int totalDisks = input.getInt();
+    static ZRec read(ReadableByteChannel channel) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
+                .order(ByteOrder.LITTLE_ENDIAN);
+        channel.read(buf);
+        buf.flip();
+
+        int eocDisk = buf.getInt();
+        long cenOff = buf.getLong();
+        int totalDisks = buf.getInt();
+
         return new Eoc64Loc(eocDisk, cenOff, totalDisks);
     }
     void write(WritableByteChannel out) throws IOException {

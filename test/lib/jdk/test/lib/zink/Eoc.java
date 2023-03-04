@@ -26,6 +26,7 @@ package jdk.test.lib.zink;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.function.Function;
@@ -46,15 +47,20 @@ public record Eoc(short thisDisk,
     static final int SIG = 0x06054b50;
     private static final int SIZE = 22;
 
-    static ZRec read(Zink.LEInput input) {
-        short thisDisk = input.getShort();
-        short startDisk = input.getShort();
-        short diskEntries = input.getShort();
-        short totalEntries = input.getShort();
-        int cenSize = input.getInt();
-        int cenOffset = input.getInt();
-        short clen = input.getShort();
-        byte[] comment = getBytes(input, clen);
+    static ZRec read(ReadableByteChannel channel) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
+                .order(ByteOrder.LITTLE_ENDIAN);
+        channel.read(buf);
+        buf.flip();
+
+        short thisDisk = buf.getShort();
+        short startDisk = buf.getShort();
+        short diskEntries = buf.getShort();
+        short totalEntries = buf.getShort();
+        int cenSize = buf.getInt();
+        int cenOffset = buf.getInt();
+        short clen = buf.getShort();
+        byte[] comment = getBytes(channel, clen);
 
         return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, comment);
     }

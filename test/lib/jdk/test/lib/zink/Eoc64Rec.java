@@ -26,6 +26,7 @@ package jdk.test.lib.zink;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -55,19 +56,24 @@ public record Eoc64Rec(long size,
             default -> r;
         };
     }
-    static ZRec read(Zink.LEInput input) {
-        long size = input.getLong();
-        short version = input.getShort();
-        short extractVersion = input.getShort();
-        int thisDisk = input.getInt();
-        int startDisk = input.getInt();
-        long numEntries = input.getLong();
-        long totalEntries = input.getLong();
-        long cenSize = input.getLong();
-        long cenOff = input.getLong();
+    static ZRec read(ReadableByteChannel channel) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
+                .order(ByteOrder.LITTLE_ENDIAN);
+        channel.read(buf);
+        buf.flip();
+
+        long size = buf.getLong();
+        short version = buf.getShort();
+        short extractVersion = buf.getShort();
+        int thisDisk = buf.getInt();
+        int startDisk = buf.getInt();
+        long numEntries = buf.getLong();
+        long totalEntries = buf.getLong();
+        long cenSize = buf.getLong();
+        long cenOff = buf.getLong();
 
         long variableSize =  size +12 - SIZE;
-        byte[] extData = getBytes(input, (int) variableSize);
+        byte[] extData = getBytes(channel, (int) variableSize);
         ExtField[] extra = parseExt(extData);
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }

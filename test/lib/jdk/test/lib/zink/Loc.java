@@ -26,6 +26,7 @@ package jdk.test.lib.zink;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -65,20 +66,25 @@ public record Loc(int sig,
     private static final int ZIP64_SIZE = 0xFFFFFFFF;
     private static final int SIZE = 30;
 
-    static Loc read(LEInput input) {
-        short version = input.getShort();
-        short flags = input.getShort();
-        short method = input.getShort();
-        short time = input.getShort();
-        short date = input.getShort();
-        int crc = input.getInt();
-        int csize = input.getInt();
-        int size = input.getInt();
-        short nlen = input.getShort();
-        short elen = input.getShort();
+    static Loc read(ReadableByteChannel channel) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
+                .order(ByteOrder.LITTLE_ENDIAN);
+        channel.read(buf);
+        buf.flip();
 
-        byte[] name = getBytes(input, nlen);
-        byte[] extraBytes = getBytes(input, elen);
+        short version = buf.getShort();
+        short flags = buf.getShort();
+        short method = buf.getShort();
+        short time = buf.getShort();
+        short date = buf.getShort();
+        int crc = buf.getInt();
+        int csize = buf.getInt();
+        int size = buf.getInt();
+        short nlen = buf.getShort();
+        short elen = buf.getShort();
+
+        byte[] name = getBytes(channel, nlen);
+        byte[] extraBytes = getBytes(channel, elen);
 
         ExtField[] extra = parseExt(extraBytes);
 
