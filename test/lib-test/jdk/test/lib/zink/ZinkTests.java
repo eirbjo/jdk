@@ -51,8 +51,7 @@ import static org.testng.Assert.assertEquals;
  * @summary Implementation tests for the Zink test lib
  * @enablePreview true
  * @library /test/lib
- * @build jdk.test.lib.zink.Zink
- * @run testng/othervm ZinkTests
+ * @run testng ZinkTests
  */
 public class ZinkTests {
 

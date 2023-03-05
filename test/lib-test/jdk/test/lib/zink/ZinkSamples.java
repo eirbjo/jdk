@@ -43,8 +43,7 @@ import static org.testng.Assert.expectThrows;
  * @summary Basic tests for ZipWriter test lib
  * @enablePreview true
  * @library /test/lib
- * @build jdk.test.lib.zink.Zink
- * @run testng/othervm ZinkSamples
+ * @run testng ZinkSamples
  */
 public class ZinkSamples {
 
