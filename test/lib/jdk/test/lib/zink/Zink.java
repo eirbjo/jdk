@@ -665,7 +665,7 @@ public abstract class Zink  implements Closeable
         private FileData readData() throws IOException {
             long start = channel.position();
 
-            if (loc.method() == loc.DEFLATE) {
+            if (loc.method() == Loc.DEFLATE) {
 
                 try {
                     // Skip
