@@ -832,7 +832,7 @@ public abstract class Zink  implements Closeable
                     row("data", "%d bytes".formatted(data.size()), data.size());
                 }
                 case Desc desc -> {
-                    header("Data Desciptor");
+                    header("Data Descriptor");
                     if (desc.signed()) {
                         row("signature", "0x%08x".formatted(Desc.SIG), Integer.BYTES);
                     }
