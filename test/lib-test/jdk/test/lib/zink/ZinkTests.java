@@ -80,12 +80,15 @@ public class ZinkTests {
         Path zip = Path.of("bigzip.zip");
 
         byte[] fileData = new byte[1024];
-        ThreadLocalRandom.current().nextBytes(fileData);
+
 
         try (ZipOutputStream zo = new ZipOutputStream(new BufferedOutputStream(Files.newOutputStream(zip)))) {
             for (int i = 0; i < 10; i++) {
                 zo.putNextEntry(new ZipEntry("entry_" + i));
-                zo.write(fileData);
+                for (int b = 0; b < 17; b++) {
+                    ThreadLocalRandom.current().nextBytes(fileData);
+                    zo.write(fileData);
+                }
             }
         }
 

@@ -507,24 +507,34 @@ public abstract class Zink  implements Closeable
 
         @Override
         public void write(WritableByteChannel out) throws IOException {
-            long orig = input.position();
-            input.position(off);
-            try {
-                ByteBuffer buf = bufferSource.get();
+            if (input instanceof FileChannel fileChannel) {
                 long rem = len;
+                long pos = off;
                 while (rem > 0) {
-                    int len = buf.capacity();
-                    if (rem < len) {
-                        len = (int) rem;
-                    }
-                    buf.limit(len).rewind();
-                    int read = input.read(buf);
-                    buf.flip();
-                    out.write(buf);
-                    rem -= read;
+                    long n = fileChannel.transferTo(pos, rem, out);
+                    rem -= n;
+                    pos += n;
                 }
-            } finally {
-                input.position(orig);
+            } else {
+                long orig = input.position();
+                input.position(off);
+                try {
+                    ByteBuffer buf = bufferSource.get();
+                    long rem = len;
+                    while (rem > 0) {
+                        int len = buf.capacity();
+                        if (rem < len) {
+                            len = (int) rem;
+                        }
+                        buf.limit(len).rewind();
+                        int read = input.read(buf);
+                        buf.flip();
+                        out.write(buf);
+                        rem -= read;
+                    }
+                } finally {
+                    input.position(orig);
+                }
             }
         }
     }
