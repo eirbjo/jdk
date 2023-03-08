@@ -40,7 +40,9 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.*;
 
 import static jdk.test.lib.Asserts.*;
@@ -286,7 +288,131 @@ public class ZinkTests {
                 }
             }
         }
+    }
 
+    @Test
+    public void shouldProduceCorrectZip64Entries() throws IOException {
+
+        List<Loc> origLocs = new ArrayList<>();
+        List<Cen> origCens = new ArrayList<>();
+
+        byte[] zip64 = Zink.stream(smallZip())
+                .filter( r -> switch (r) {
+                    case Loc loc -> {
+                        origLocs.add(loc);
+                        yield true;
+                    }
+                    case Cen cen -> {
+                        origCens.add(cen);
+                        yield true;
+                    }
+                    default -> true;
+                })
+                .flatMap(Zink.toZip64())
+                .collect(Zink.toByteArray());
+
+        Zink.stream(zip64)
+                .filter(new Predicate<ZRec>() {
+                    private long offset = 0L;
+                    private int locIndex = 0;
+                    private int cenIndex = 0;
+                    private long cenOffset;
+                    private List<Long> locOffets = new ArrayList<>();
+
+                    @Override
+                    public boolean test(ZRec r) {
+                        long currentOffset = offset;
+                        offset += r.sizeOf();
+
+                        return switch (r) {
+                            case Loc loc -> {
+                                locOffets.add(currentOffset);
+
+                                // Version 45 is required for Zip64
+                                assertEquals(loc.version(), (short) 45);
+
+                                // Sizes should have 32-bit magic values
+                                assertEquals(loc.size(), 0XFFFFFFFF);
+                                assertEquals(loc.csize(), 0XFFFFFFFF);
+
+                                // ExtZip64 should have been added
+                                ExtZip64 extZip64 = Stream.of(loc.extra()).flatMap(ExtZip64.select())
+                                        .findAny()
+                                        .orElseThrow();
+
+                                Loc origLoc  = origLocs.get(locIndex);
+
+                                // Sizes and diskStart of ExtZip64 should match values from origLoc
+                                assertEquals((int) extZip64.size(), origLoc.size());
+                                assertEquals((int) extZip64.csize(), origLoc.csize());
+
+                                locIndex++;
+                                yield true;
+                            }
+                            case Cen cen -> {
+                                if (cenOffset == 0) {
+                                    cenOffset = currentOffset;
+                                }
+                                // Version 45 is required for Zip64
+                                assertEquals(cen.version(), (short) 45);
+                                assertEquals(cen.extractVersion(), (short) 45);
+
+                                // Sizes and offset should have 32-bit magic values
+                                assertEquals(cen.size(), 0XFFFFFFFF);
+                                assertEquals(cen.csize(), 0XFFFFFFFF);
+                                assertEquals(cen.locOff(), 0XFFFFFFFF);
+
+                                // dStart should be 16-bit magic value
+                                assertEquals(cen.diskStart(), (short) 0XFFFF);
+
+                                // ExtZip64 should have been added
+                                ExtZip64 extZip64 = Stream.of(cen.extra()).flatMap(ExtZip64.select())
+                                        .findAny()
+                                        .orElseThrow();
+
+                                Cen origCen  = origCens.get(cenIndex);
+
+                                // Sizes and diskStart of ExtZip64 should match values from origCen
+                                assertEquals((int) extZip64.size(), origCen.size());
+                                assertEquals((int) extZip64.csize(), origCen.csize());
+                                assertEquals((short) extZip64.diskStart(), origCen.diskStart());
+
+                                // locOff should match actual
+                                assertEquals(extZip64.locOff(), locOffets.get(cenIndex).longValue());
+
+                                cenIndex++;
+                                yield true;
+                            }
+                            case Eoc64Rec eoc64Rec -> {
+                                // Version 45 is required for Zip64
+                                assertEquals(eoc64Rec.version(), (short) 45);
+                                assertEquals(eoc64Rec.extractVersion(), (short) 45);
+                                // Unchanged
+                                assertEquals(eoc64Rec.thisDisk(), 0);
+                                assertEquals(eoc64Rec.startDisk(), 0);
+                                // Numbers from Eoc
+                                assertEquals(eoc64Rec.numEntries(), 2);
+                                assertEquals(eoc64Rec.totalEntries(), 2);
+                                // Should match seen offset and size
+                                assertEquals(eoc64Rec.cenOff(), cenOffset);
+                                assertEquals(eoc64Rec.cenSize(), currentOffset - cenOffset);
+
+                                yield true;
+                            }
+                            case Eoc eoc -> {
+                                // All fields should have Zip64 magic values
+                                assertEquals(eoc.thisDisk(), (short) 0XFFFF);
+                                assertEquals(eoc.startDisk(), (short) 0XFFFF);
+                                assertEquals(eoc.diskEntries(), (short) 0XFFFF);
+                                assertEquals(eoc.totalEntries(), (short) 0XFFFF);
+                                assertEquals(eoc.cenSize(), 0XFFFFFFFF);
+                                assertEquals(eoc.cenOffset(), 0XFFFFFFFF);
+                                yield true;
+                            }
+                            default -> true;
+                        };
+                    }
+                }).collect(Zink.toByteArray());
     }
 
     @Test

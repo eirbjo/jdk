@@ -85,7 +85,7 @@ public abstract class Zink  implements Closeable
             case Loc loc -> Stream.of(loc.toZip64());
             case Desc desc -> Stream.of(desc.toZip64());
             case Cen cen -> Stream.of(cen.toZip64());
-            case Eoc eoc -> Stream.of(Eoc64Rec.of(eoc), Eoc64Loc.of(eoc), eoc);
+            case Eoc eoc -> Stream.of(Eoc64Rec.of(eoc), Eoc64Loc.of(eoc), eoc.toZip64());
             default -> Stream.of(r);
         };
     }
@@ -777,7 +777,7 @@ public abstract class Zink  implements Closeable
                 case Eoc64Loc eoc64Loc -> {
                     yield eoc64Loc.eocOff(eoc64Off);
                 }
-                case Eoc eoc -> {
+                case Eoc eoc when !eoc.isZip64() -> {
                     if (cenSize == 0) { // No Eoc64Rec
                         cenSize = currentOffset - cenOffset;
                     }

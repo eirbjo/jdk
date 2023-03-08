@@ -46,6 +46,8 @@ public record Eoc(short thisDisk,
                   byte[] comment) implements ZRec {
     static final int SIG = 0x06054b50;
     private static final int SIZE = 22;
+    private static final short ZIP64_16 = (short) 0xFFFF;
+    private static final short ZIP64_32 = 0xFFFFFFFF;
 
     static ZRec read(ReadableByteChannel channel) throws IOException {
         ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
@@ -136,5 +138,13 @@ public record Eoc(short thisDisk,
 
     public short clen() {
         return (short) comment.length;
+    }
+
+    public Eoc toZip64() {
+        return new Eoc(ZIP64_16, ZIP64_16, ZIP64_16, ZIP64_16, ZIP64_32, ZIP64_32, comment);
+    }
+
+    public boolean isZip64() {
+        return thisDisk == ZIP64_16;
     }
 }

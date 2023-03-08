@@ -69,6 +69,7 @@ public record Cen(int sig,
     // The total size of fixed-size fields in the Central Directory Header
     private static final int SIZE = 46;
 
+    private static final short VER_45 = 45;
     // Value used in size and csize fields when the entry is in Zip64 format
     static final int ZIP64_SIZE_32 = 0xFFFFFFFF;
     // Value used in locOff field when the entry is in Zip64 format
@@ -226,7 +227,9 @@ public record Cen(int sig,
                 .toArray(ExtField[]::new);
 
 
-        return size(size)
+        return version(VER_45)
+                .extractVersion(VER_45)
+                .size(size)
                 .csize(csize)
                 .diskStart(dstart)
                 .locOff(locOff)
