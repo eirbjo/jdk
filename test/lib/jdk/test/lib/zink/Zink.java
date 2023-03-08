@@ -584,6 +584,7 @@ public abstract class Zink  implements Closeable
 
     private static class Zpliterator extends Spliterators.AbstractSpliterator<ZRec> {
         private final SeekableByteChannel channel;
+        private final long size;
         private States state;
         private Loc loc;
 
@@ -609,21 +610,23 @@ public abstract class Zink  implements Closeable
                     Spliterator.IMMUTABLE | Spliterator.NONNULL);
             this.state = States.SIG;
             this.channel = channel;
+            try {
+                this.size = channel.size();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
         public boolean tryAdvance(Consumer<? super ZRec> action) {
             try {
-                if (channel.position() >= channel.size()) {
+                if (offset >= size) {
                     return false;
                 }
                 ZRec next = parseNext();
                 long nextOffset = offset + next.sizeOf();
                 if (channel instanceof SeekableByteChannel sbc) {
-                    long position = sbc.position();
-                    if (position != nextOffset) {
-                        throw new IllegalStateException("Unexcpected offset");
-                    }
+                    assert (sbc.position() != nextOffset);
                 }
                 offset = nextOffset;
                 action.accept(next);
