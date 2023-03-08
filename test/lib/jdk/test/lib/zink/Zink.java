@@ -496,22 +496,21 @@ public abstract class Zink  implements Closeable
         private final SeekableByteChannel input;
         private final long off;
         private final long len;
+        private final Supplier<ByteBuffer> bufferSource;
 
-        SeekableByteChannelWriter(SeekableByteChannel input, long off, long len) {
+        SeekableByteChannelWriter(SeekableByteChannel input, long off, long len, Supplier<ByteBuffer> bufferSource) {
             this.input = input;
             this.off = off;
             this.len = len;
+            this.bufferSource = bufferSource;
         }
+
         @Override
         public void write(WritableByteChannel out) throws IOException {
             long orig = input.position();
             input.position(off);
             try {
-                int size = 512;
-                if (len < size) {
-                    size = (int) len;
-                }
-                ByteBuffer buf = ByteBuffer.allocate(size);
+                ByteBuffer buf = bufferSource.get();
                 long rem = len;
                 while (rem > 0) {
                     int len = buf.capacity();
@@ -595,6 +594,7 @@ public abstract class Zink  implements Closeable
         private Inflater inflater;
         private ByteBuffer readBuf;
         private ByteBuffer writeBuf;
+        private ByteBuffer fileDataBuffer;
 
         public void close() throws IOException {
             channel.close();
@@ -714,7 +714,7 @@ public abstract class Zink  implements Closeable
                     long csize = inflater.getBytesRead();
                     long size = inflater.getBytesWritten();
                     channel.position(start + csize);
-                    return new FileData(new SeekableByteChannelWriter(channel, (int) start, csize), csize);
+                    return new FileData(new SeekableByteChannelWriter(channel, (int) start, csize, this::getFileDataBuffer), csize);
                 } catch (DataFormatException e) {
                     throw new IOException(e.getMessage(), e);
                 }
@@ -723,9 +723,17 @@ public abstract class Zink  implements Closeable
             } else {
                 long size = loc.isZip64() ? loc.extra(ExtZip64.class).get().csize() : loc.csize();
                 channel.position(start + size);
-                return new FileData(new SeekableByteChannelWriter(channel, (int) start, size), size);
+                return new FileData(new SeekableByteChannelWriter(channel, (int) start, size, this::getFileDataBuffer), size);
             }
         }
+
+        private ByteBuffer getFileDataBuffer() {
+            if (fileDataBuffer == null) {
+                fileDataBuffer = ByteBuffer.allocate(1024);
+            }
+            return fileDataBuffer;
+        }
+
         private ZRec readSig() throws IOException {
             int sig = getInt();
 
