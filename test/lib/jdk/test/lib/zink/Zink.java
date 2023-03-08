@@ -408,10 +408,7 @@ public abstract class Zink  implements Closeable
         void write(ZRec rec) throws IOException {
 
             if (out instanceof SeekableByteChannel seek) {
-                long location = seek.position();
-                if (this.offset != location) {
-                    throw new IllegalStateException("Offset does not match location");
-                }
+                assert this.offset != seek.position();
             }
             offset += rec.sizeOf();
 
@@ -685,7 +682,7 @@ public abstract class Zink  implements Closeable
         }
 
         private FileData readData() throws IOException {
-            long start = channel.position();
+            long start = offset;
 
             if (loc.method() == Loc.DEFLATE) {
 
