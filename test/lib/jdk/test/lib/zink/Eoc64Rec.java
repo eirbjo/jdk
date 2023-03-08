@@ -56,10 +56,9 @@ public record Eoc64Rec(long size,
             default -> r;
         };
     }
-    static ZRec read(ReadableByteChannel channel) throws IOException {
-        ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
-                .order(ByteOrder.LITTLE_ENDIAN);
-        channel.read(buf);
+
+    static ZRec read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
+        channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
         buf.flip();
 
         long size = buf.getLong();

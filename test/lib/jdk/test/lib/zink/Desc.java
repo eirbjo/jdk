@@ -38,10 +38,8 @@ public record Desc(boolean signed, boolean zip64, int crc, long csize, long size
     public static final int SIZE = 4 * 3;
     static final int SIG = 0x8074b50;
 
-    static Desc read(ReadableByteChannel channel, int crcOrSig, boolean signed, boolean zip64) throws IOException {
-        ByteBuffer buf = ByteBuffer.allocate(sizeOf(signed, zip64) - Integer.BYTES)
-                .order(ByteOrder.LITTLE_ENDIAN);
-        channel.read(buf);
+    static Desc read(ReadableByteChannel channel, ByteBuffer buf, int crcOrSig, boolean signed, boolean zip64) throws IOException {
+        channel.read(buf.limit(sizeOf(signed, zip64) - Integer.BYTES).rewind());
         buf.flip();
 
         int crc;

@@ -37,10 +37,8 @@ public record Eoc64Loc(int eocDisk, long eocOff, int totalDisks) implements ZRec
     static final int SIG = 0x07064b50;
     private static final int SIZE = 20;
 
-    static ZRec read(ReadableByteChannel channel) throws IOException {
-        ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
-                .order(ByteOrder.LITTLE_ENDIAN);
-        channel.read(buf);
+    static ZRec read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
+        channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
         buf.flip();
 
         int eocDisk = buf.getInt();
@@ -49,6 +47,7 @@ public record Eoc64Loc(int eocDisk, long eocOff, int totalDisks) implements ZRec
 
         return new Eoc64Loc(eocDisk, cenOff, totalDisks);
     }
+
     void write(WritableByteChannel out) throws IOException {
         ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
         buf.putInt(SIG);

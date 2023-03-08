@@ -66,10 +66,8 @@ public record Loc(int sig,
     private static final int ZIP64_SIZE = 0xFFFFFFFF;
     private static final int SIZE = 30;
 
-    static Loc read(ReadableByteChannel channel) throws IOException {
-        ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
-                .order(ByteOrder.LITTLE_ENDIAN);
-        channel.read(buf);
+    static Loc read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
+        channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
         buf.flip();
 
         short version = buf.getShort();

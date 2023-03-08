@@ -49,10 +49,8 @@ public record Eoc(short thisDisk,
     private static final short ZIP64_16 = (short) 0xFFFF;
     private static final short ZIP64_32 = 0xFFFFFFFF;
 
-    static ZRec read(ReadableByteChannel channel) throws IOException {
-        ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
-                .order(ByteOrder.LITTLE_ENDIAN);
-        channel.read(buf);
+    static ZRec read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
+        channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
         buf.flip();
 
         short thisDisk = buf.getShort();

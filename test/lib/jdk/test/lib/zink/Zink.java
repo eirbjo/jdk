@@ -605,6 +605,7 @@ public abstract class Zink  implements Closeable
         private ByteBuffer readBuf;
         private ByteBuffer writeBuf;
         private ByteBuffer fileDataBuffer;
+        private ByteBuffer headerBuffer = ByteBuffer.allocate(52).order(ByteOrder.LITTLE_ENDIAN);
 
         public void close() throws IOException {
             channel.close();
@@ -665,9 +666,9 @@ public abstract class Zink  implements Closeable
                     int sigOrCrc = getInt();
 
                     if (sigOrCrc == Desc.SIG) {
-                        yield Desc.read(channel, sigOrCrc, true, zip64);
+                        yield Desc.read(channel, headerBuffer, sigOrCrc, true, zip64);
                     } else {
-                        yield Desc.read(channel, sigOrCrc, false, zip64);
+                        yield Desc.read(channel, headerBuffer, sigOrCrc, false, zip64);
                     }
                 }
             };
@@ -749,17 +750,17 @@ public abstract class Zink  implements Closeable
 
             switch (sig) {
                 case Loc.SIG:
-                    loc = Loc.read(channel);
+                    loc = Loc.read(channel, headerBuffer);
                     state = States.FILE_DATA;
                     return loc;
                 case Cen.SIG:
-                    return Cen.read(channel);
+                    return Cen.read(channel, headerBuffer);
                 case Eoc.SIG:
-                    return Eoc.read(channel);
+                    return Eoc.read(channel, headerBuffer);
                 case Eoc64Rec.SIG:
-                    return Eoc64Rec.read(channel);
+                    return Eoc64Rec.read(channel, headerBuffer);
                 case Eoc64Loc.SIG:
-                    return Eoc64Loc.read(channel);
+                    return Eoc64Loc.read(channel, headerBuffer);
                 default: throw new IllegalArgumentException("Unknown sig: " + Integer.toHexString(sig));
             }
         }

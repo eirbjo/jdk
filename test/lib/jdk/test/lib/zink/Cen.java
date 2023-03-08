@@ -76,10 +76,8 @@ public record Cen(int sig,
     private static final short ZIP64_SIZE_16 = (short) 0xFFFF;
 
     // Read a Cen record from a ByteBuffer
-    static Cen read(ReadableByteChannel channel) throws IOException {
-        ByteBuffer buf = ByteBuffer.allocate(SIZE - Integer.BYTES)
-                .order(ByteOrder.LITTLE_ENDIAN);
-        channel.read(buf);
+    static Cen read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
+        channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
         buf.flip();
 
         short version = buf.getShort();
