@@ -50,11 +50,11 @@ public abstract class Zink  implements Closeable
      * @throws IOException if an I/O error occurs when opening the file
      */
     public static Stream<ZRec> stream(Path path) throws IOException {
-        SeekableByteChannel channel = Files.newByteChannel(path);
-        Stream<ZRec> stream = StreamSupport.stream(new Zpliterator(channel), false);
+        Zpliterator spliterator = new Zpliterator(Files.newByteChannel(path));
+        Stream<ZRec> stream = StreamSupport.stream(spliterator, false);
         stream.onClose(() -> {
             try {
-                channel.close();
+                spliterator.close();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -591,6 +591,14 @@ public abstract class Zink  implements Closeable
         private long offset = 0;
         private final ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES)
                 .order(ByteOrder.LITTLE_ENDIAN);
+        private Inflater inflater;
+        private ByteBuffer readBuf;
+        private ByteBuffer writeBuf;
+
+        public void close() throws IOException {
+            channel.close();
+            inflater.end();
+        }
 
         enum States {
             SIG, FILE_DATA, DATA_DESC
@@ -668,33 +676,40 @@ public abstract class Zink  implements Closeable
             if (loc.method() == Loc.DEFLATE) {
 
                 try {
-                    // Skip
-                    Inflater inf = new Inflater(true);
-
-                    ByteBuffer readBuf = ByteBuffer.allocate(512);
-                    ByteBuffer writeBuf = ByteBuffer.allocate(512);
+                    // Lazy init of inflater, read and write buffers
+                    if (inflater == null) {
+                        inflater = new Inflater(true);
+                    } else {
+                        inflater.reset();
+                    }
+                    if (readBuf == null) {
+                        readBuf = ByteBuffer.allocate(1024);
+                    }
+                    if (writeBuf == null) {
+                        writeBuf = ByteBuffer.allocate(1024);
+                    }
 
                     int n;
-                    while (!inf.finished() && !inf.needsDictionary()) {
+                    while (!inflater.finished() && !inflater.needsDictionary()) {
                         do {
                             writeBuf.clear();
-                            if (inf.finished() || inf.needsDictionary()) {
+                            if (inflater.finished() || inflater.needsDictionary()) {
                                 break;
                             }
-                            if (inf.needsInput()) {
+                            if (inflater.needsInput()) {
                                 readBuf.clear();
                                 int len = channel.read(readBuf);
                                 if (len == -1) {
                                     throw new EOFException("Unexpected end of ZLIB input stream");
                                 }
                                 readBuf.flip();
-                                inf.setInput(readBuf);
+                                inflater.setInput(readBuf);
                             }
-                        } while ((n = inf.inflate(writeBuf)) == 0);
+                        } while ((n = inflater.inflate(writeBuf)) == 0);
                     }
 
-                    long csize = inf.getBytesRead();
-                    long size = inf.getBytesWritten();
+                    long csize = inflater.getBytesRead();
+                    long size = inflater.getBytesWritten();
                     channel.position(start + csize);
                     return new FileData(new SeekableByteChannelWriter(channel, (int) start, csize), csize);
                 } catch (DataFormatException e) {
