@@ -596,8 +596,6 @@ public abstract class Zink  implements Closeable
 
         private long cenIndex;
         private long offset = 0;
-        private final ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES)
-                .order(ByteOrder.LITTLE_ENDIAN);
         private Inflater inflater;
         private ByteBuffer readBuf;
         private ByteBuffer writeBuf;
@@ -672,9 +670,9 @@ public abstract class Zink  implements Closeable
         }
 
         private int getInt() throws IOException {
-            buffer.clear().limit(Integer.BYTES);
-            channel.read(buffer);
-            return buffer.getInt(0);
+            headerBuffer.clear().limit(Integer.BYTES);
+            channel.read(headerBuffer);
+            return headerBuffer.getInt(0);
         }
 
         private boolean isLocOrCenSig(int number) {
