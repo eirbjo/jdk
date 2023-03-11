@@ -21,40 +21,39 @@
  * questions.
  */
 
-import org.testng.Assert;
+import jdk.test.lib.zink.Cen;
+import jdk.test.lib.zink.ExtField;
+import jdk.test.lib.zink.ExtTs;
+import jdk.test.lib.zink.Zink;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystem;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.List;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.Map;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-
-import static java.lang.String.format;
+import java.util.zip.ZipOutputStream;
 
 /**
  * @test
  * @bug 8255380 8257445
  * @summary Test that Zip FS can access the LOC offset from the Zip64 extra field
+ * @library /test/lib
+ * @enablePreview
  * @modules jdk.zipfs
- * @requires (os.family == "linux") | (os.family == "mac")
- * @run testng/manual TestLocOffsetFromZip64EF
+ * @run testng TestLocOffsetFromZip64EF
  */
 public class TestLocOffsetFromZip64EF {
 
     private static final String ZIP_FILE_NAME = "LargeZipTest.zip";
-    // File that will be created with a size greater than 0xFFFFFFFF
-    private static final String LARGE_FILE_NAME = "LargeZipEntry.txt";
-    // File that will be created with a size less than 0xFFFFFFFF
-    private static final String SMALL_FILE_NAME = "SmallZipEntry.txt";
-    // The size (4GB) of the large file to be created
-    private static final long LARGE_FILE_SIZE = 4L * 1024L * 1024L * 1024L;
 
     /**
      * Create the files used by this test
@@ -62,9 +61,7 @@ public class TestLocOffsetFromZip64EF {
      */
     @BeforeClass
     public void setUp() throws IOException {
-        System.out.println("In setup");
         cleanup();
-        createFiles();
         createZipWithZip64Ext();
     }
 
@@ -74,10 +71,7 @@ public class TestLocOffsetFromZip64EF {
      */
     @AfterClass
     public void cleanup() throws IOException {
-        System.out.println("In cleanup");
         Files.deleteIfExists(Path.of(ZIP_FILE_NAME));
-        Files.deleteIfExists(Path.of(LARGE_FILE_NAME));
-        Files.deleteIfExists(Path.of(SMALL_FILE_NAME));
     }
 
     /**
@@ -85,12 +79,31 @@ public class TestLocOffsetFromZip64EF {
      * being added to the CEN entry in order to find the LOC offset for
      * SMALL_FILE_NAME.
      */
-    public static void createZipWithZip64Ext() {
-        System.out.println("Executing zip...");
-        List<String> commands = List.of("zip", "-0", ZIP_FILE_NAME,
-                LARGE_FILE_NAME, SMALL_FILE_NAME);
-        Result rc = run(new ProcessBuilder(commands));
-        rc.assertSuccess();
+    public void createZipWithZip64Ext() throws IOException {
+        Path zip = Zink.stream(makeZipWithExtendedTimestamp())
+                .flatMap(Zink.toZip64())
+                .map(Cen.map(cen -> cen.extra(timestampFirst(cen.extra()))))
+                .collect(Zink.toFile(ZIP_FILE_NAME));
+    }
+
+    private byte[] makeZipWithExtendedTimestamp() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(out)) {
+            ZipEntry entry = new ZipEntry("entry");
+            // Make ZipOutputStream produce 'Info-ZIP extended timestamp'
+            entry.setLastModifiedTime(FileTime.from(Instant.now()));
+            zo.putNextEntry(entry);
+        }
+        return out.toByteArray();
+    }
+
+    private static ExtField[] timestampFirst(ExtField[] extra) {
+        return Stream.concat(
+                // Move any ExtTs fields first
+                Stream.of(extra).filter(e -> e instanceof ExtTs),
+                // Followed by any other fields
+                Stream.of(extra).filter(e -> !(e instanceof ExtTs))
+        ).toArray(ExtField[]::new);
     }
 
     /*
@@ -140,91 +153,5 @@ public class TestLocOffsetFromZip64EF {
             zip.stream().forEach(z -> System.out.printf("%s, %s, %s%n",
                     z.getName(), z.getMethod(), z.getLastModifiedTime()));
         }
-    }
-
-    /**
-     * Create the files that will be added to the ZIP file
-     * @throws IOException if there is a problem  creating the files
-     */
-    private static void createFiles() throws IOException {
-        try (RandomAccessFile file = new RandomAccessFile(LARGE_FILE_NAME, "rw")
-        ) {
-            System.out.printf("Creating %s%n", LARGE_FILE_NAME);
-            file.setLength(LARGE_FILE_SIZE);
-            System.out.printf("Creating %s%n", SMALL_FILE_NAME);
-            Files.writeString(Path.of(SMALL_FILE_NAME), "Hello");
-        }
-    }
-
-    /**
-     * Utility method to execute a ProcessBuilder command
-     * @param pb ProcessBuilder to execute
-     * @return The Result(s) from the ProcessBuilder execution
-     */
-    private static Result run(ProcessBuilder pb) {
-        Process p;
-        System.out.printf("Running: %s%n", pb.command());
-        try {
-            p = pb.start();
-        } catch (IOException e) {
-            throw new RuntimeException(
-                    format("Couldn't start process '%s'", pb.command()), e);
-        }
-
-        String output;
-        try {
-            output = toString(p.getInputStream(), p.getErrorStream());
-        } catch (IOException e) {
-            throw new RuntimeException(
-                    format("Couldn't read process output '%s'", pb.command()), e);
-        }
-
-        try {
-            p.waitFor();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(
-                    format("Process hasn't finished '%s'", pb.command()), e);
-        }
-        return new Result(p.exitValue(), output);
-    }
-
-    /**
-     * Utility Method for combining the output from a ProcessBuilder invocation
-     * @param in1 ProccessBuilder.getInputStream
-     * @param in2 ProcessBuilder.getErrorStream
-     * @return The ProcessBuilder output
-     * @throws IOException if an error occurs
-     */
-    static String toString(InputStream in1, InputStream in2) throws IOException {
-        try (ByteArrayOutputStream dst = new ByteArrayOutputStream();
-             InputStream concatenated = new SequenceInputStream(in1, in2)) {
-            concatenated.transferTo(dst);
-            return new String(dst.toByteArray(), StandardCharsets.UTF_8);
-        }
-    }
-
-    /**
-     * Utility class used to hold the results from  a ProcessBuilder execution
-     */
-    static class Result {
-        final int ec;
-        final String output;
-
-        private Result(int ec, String output) {
-            this.ec = ec;
-            this.output = output;
-        }
-        Result assertSuccess() {
-            assertTrue(ec == 0, "Expected ec 0, got: ", ec, " , output [", output, "]");
-            return this;
-        }
-    }
-    static void assertTrue(boolean cond, Object ... failedArgs) {
-        if (cond)
-            return;
-        StringBuilder sb = new StringBuilder();
-        for (Object o : failedArgs)
-            sb.append(o);
-        Assert.fail(sb.toString());
     }
 }
