@@ -67,14 +67,14 @@ Stream<ZRec> stream = Zink.stream(bytes);               // Produce a stream from
 Stream<ZRec> stream = Zink.stream(Path.of("file.zip")); // Produce a stream from a file
 ```
 
-### Collecting ZIP streams
+### Collecting streams
 Similarly, `Zink` contains methods to collect streams into files or byte arrays:
 
 ```java
 byte[] zip = stream.collect(Zink.toByteArray());
 Path fileFile = stream.collect(Zink.toFile("file.zip"));
 ```
-### Transforming ZIP files via streams
+### Transforming streams
 
 By chaining the factory and collection methods, we can produce an identity transform 
 on the ZIP file:
@@ -104,6 +104,27 @@ More complex operations which introduce new records may be implemeted using `fla
 Zink.stream(smallZip())
         .flatMap(Zink.toZip64()) // Transform to the Zip64 format
         .collect(Zink.toByteArray());
+```
+
+Loc and Cen has convenience methods to filter entries (Loc, Desc, FileData and Cen) 
+by name:
+
+````java
+Zink.stream(zipWithEntries("a", "b"))
+          // Remove Loc "a" with associated Desc and FileData
+          .filter(Loc.remove(Loc.named("a")))
+          // Remove Cen "a"
+          .filter(Cen.remove(Cen.named("a")))
+````
+### Concatenating streams
+Streams may be concatenated, forming a new stream with the contents of the first stream
+followed by the contents of the second stream:
+
+```java
+Path concat = Zink.concat(
+        Zink.stream(zipWithEntries("a", "b")),
+        Zink.stream(zipWithEntries("c", "d"))
+).collect(Zink.toFile("a-b-c-d.zip"));
 ```
 
 ### Offset and size calculations

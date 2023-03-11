@@ -24,6 +24,10 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
 
 /**
@@ -33,17 +37,25 @@ public record Eoc64Loc(int eocDisk, long eocOff, int totalDisks) implements ZRec
     static final int SIG = 0x07064b50;
     private static final int SIZE = 20;
 
-    static ZRec read(Zink.LEInput input) {
-        int eocDisk = input.getInt();
-        long cenOff = input.getLong();
-        int totalDisks = input.getInt();
+    static ZRec read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
+        channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
+        buf.flip();
+
+        int eocDisk = buf.getInt();
+        long cenOff = buf.getLong();
+        int totalDisks = buf.getInt();
+
         return new Eoc64Loc(eocDisk, cenOff, totalDisks);
     }
-    void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(SIG);
-        out.writeInt(eocDisk);
-        out.writeLong(eocOff);
-        out.writeInt(totalDisks);
+
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(SIG);
+        buf.putInt(eocDisk);
+        buf.putLong(eocOff);
+        buf.putInt(totalDisks);
+
+        out.write(buf.flip());
     }
 
     public static Function<ZRec, ZRec> map(Function<Eoc64Loc, Eoc64Loc> mapper) {

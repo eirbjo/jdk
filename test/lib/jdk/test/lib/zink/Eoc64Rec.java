@@ -24,6 +24,10 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -52,33 +56,49 @@ public record Eoc64Rec(long size,
             default -> r;
         };
     }
-    static ZRec read(Zink.LEInput input) {
-        long size = input.getLong();
-        short version = input.getShort();
-        short extractVersion = input.getShort();
-        int thisDisk = input.getInt();
-        int startDisk = input.getInt();
-        long numEntries = input.getLong();
-        long totalEntries = input.getLong();
-        long cenSize = input.getLong();
-        long cenOff = input.getLong();
+
+    static ZRec read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
+        channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
+        buf.flip();
+
+        long size = buf.getLong();
+        short version = buf.getShort();
+        short extractVersion = buf.getShort();
+        int thisDisk = buf.getInt();
+        int startDisk = buf.getInt();
+        long numEntries = buf.getLong();
+        long totalEntries = buf.getLong();
+        long cenSize = buf.getLong();
+        long cenOff = buf.getLong();
 
         long variableSize =  size +12 - SIZE;
-        byte[] extData = getBytes(input, (int) variableSize);
+        byte[] extData = getBytes(channel, (int) variableSize);
         ExtField[] extra = parseExt(extData);
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
-    void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(SIG);
-        out.writeLong(size);
-        out.writeShorts(version, extractVersion);
-        out.writeInts(thisDisk, startDisk);
-        out.writeLongs(numEntries, totalEntries, cenSize, cenOff);
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(SIG);
+        buf.putLong(size);
+        buf.putShort(version);
+        buf.putShort(extractVersion);
+        buf.putInt(thisDisk);
+        buf.putInt(startDisk);
+
+        buf.putLong(numEntries);
+        buf.putLong(totalEntries);
+        buf.putLong(cenSize);
+        buf.putLong(cenOff);
+
         for (ExtField e : extra) {
-            out.writeShorts(e.id(), e.dsize());
-            out.write(e.data());
+            byte[] data = e.data();
+            buf.putShort(e.id());
+            buf.putShort(e.dsize());
+            buf.put(data);
         }
+
+        out.write(buf.flip());
     }
 
     public static Eoc64Rec of(Eoc eoc) {

@@ -24,6 +24,10 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -42,26 +46,37 @@ public record Eoc(short thisDisk,
                   byte[] comment) implements ZRec {
     static final int SIG = 0x06054b50;
     private static final int SIZE = 22;
+    private static final short ZIP64_16 = (short) 0xFFFF;
+    private static final short ZIP64_32 = 0xFFFFFFFF;
 
-    static ZRec read(Zink.LEInput input) {
-        short thisDisk = input.getShort();
-        short startDisk = input.getShort();
-        short diskEntries = input.getShort();
-        short totalEntries = input.getShort();
-        int cenSize = input.getInt();
-        int cenOffset = input.getInt();
-        short clen = input.getShort();
-        byte[] comment = getBytes(input, clen);
+    static ZRec read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
+        channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
+        buf.flip();
+
+        short thisDisk = buf.getShort();
+        short startDisk = buf.getShort();
+        short diskEntries = buf.getShort();
+        short totalEntries = buf.getShort();
+        int cenSize = buf.getInt();
+        int cenOffset = buf.getInt();
+        short clen = buf.getShort();
+        byte[] comment = getBytes(channel, clen);
 
         return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, comment);
     }
 
-    void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(SIG);
-        out.writeShorts(thisDisk, startDisk, diskEntries, totalEntries);
-        out.writeInts(cenSize, cenOffset);
-        out.writeShort((short) comment.length);
-        out.write(comment);
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(SIG);
+        buf.putShort(thisDisk);
+        buf.putShort(startDisk);
+        buf.putShort(diskEntries);
+        buf.putShort(totalEntries);
+        buf.putInt(cenSize);
+        buf.putInt(cenOffset);
+        buf.putShort((short) comment.length);
+        buf.put(comment);
+        out.write(buf.flip());
     }
 
 
@@ -121,5 +136,13 @@ public record Eoc(short thisDisk,
 
     public short clen() {
         return (short) comment.length;
+    }
+
+    public Eoc toZip64() {
+        return new Eoc(ZIP64_16, ZIP64_16, ZIP64_16, ZIP64_16, ZIP64_32, ZIP64_32, comment);
+    }
+
+    public boolean isZip64() {
+        return thisDisk == ZIP64_16;
     }
 }

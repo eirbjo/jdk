@@ -25,6 +25,8 @@ package jdk.test.lib.zink;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 public record ExtZip64(short dsize, long size, long csize, long locOff, int diskStart) implements ExtField {
 
@@ -55,6 +57,13 @@ public record ExtZip64(short dsize, long size, long csize, long locOff, int disk
         }
 
         return new ExtZip64(dsize, size, csize, locOff, diskStart);
+    }
+
+    public static Function<ExtField, Stream<ExtZip64>> select() {
+        return r -> switch (r) {
+            case ExtZip64 extZip64 -> Stream.of(extZip64);
+            default -> Stream.empty();
+        };
     }
 
     @Override

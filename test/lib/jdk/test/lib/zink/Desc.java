@@ -24,6 +24,10 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
 
 /**
@@ -34,35 +38,44 @@ public record Desc(boolean signed, boolean zip64, int crc, long csize, long size
     public static final int SIZE = 4 * 3;
     static final int SIG = 0x8074b50;
 
-    static Desc read(Zink.LEInput input, int crcOrSig, boolean signed, boolean zip64) {
+    static Desc read(ReadableByteChannel channel, ByteBuffer buf, int crcOrSig, boolean signed, boolean zip64) throws IOException {
+        channel.read(buf.limit(sizeOf(signed, zip64) - Integer.BYTES).rewind());
+        buf.flip();
+
         int crc;
         if (signed) {
-            crc = input.getInt();
+            crc = buf.getInt();
         } else {
             crc = crcOrSig;
         }
         long csize;
         long size;
         if (zip64) {
-            csize = input.getLong();
-            size = input.getLong();
+            csize = buf.getLong();
+            size = buf.getLong();
         } else {
-            csize = input.getInt();
-            size = input.getInt();
+            csize = buf.getInt();
+            size = buf.getInt();
         }
         return new Desc(signed, zip64, crc, csize, size);
     }
 
-    void write(Zink.LEOutputStream out) throws IOException {
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf())
+                .order(ByteOrder.LITTLE_ENDIAN);
         if(signed) {
-            out.writeInt(SIG);
+            buf.putInt(SIG);
         }
-        out.writeInt(crc);
+        buf.putInt(crc);
         if (zip64) {
-            out.writeLongs(csize, size);
+            buf.putLong(csize);
+            buf.putLong(size);
         } else {
-            out.writeInts((int) csize, (int) size);
+            buf.putInt((int) csize);
+            buf.putInt((int) size);
         }
+        buf.flip();
+        out.write(buf);
     }
 
     public static Function<ZRec, ZRec> map(Function<Desc, Desc> mapper) {
@@ -74,6 +87,10 @@ public record Desc(boolean signed, boolean zip64, int crc, long csize, long size
 
     @Override
     public long sizeOf() {
+        return sizeOf(signed, zip64);
+    }
+
+    private static int sizeOf(boolean signed, boolean zip64) {
         int size = Integer.BYTES; // CRC
 
         if (signed) {

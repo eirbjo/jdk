@@ -24,14 +24,18 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
 
 public record Skip(long skip) implements ZRec {
     public static Skip of(long skip) {
         return new Skip(skip);
     }
 
-    public void write(Zink.LEOutputStream out) throws IOException {
-        out.skip(skip);
+    public void write(WritableByteChannel out) throws IOException {
+        if (out instanceof SeekableByteChannel seek) {
+            seek.position(seek.position() + skip);
+        }
     }
 
     @Override

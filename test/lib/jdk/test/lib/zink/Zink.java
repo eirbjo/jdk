@@ -26,11 +26,11 @@ package jdk.test.lib.zink;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.FileChannel;
+import java.nio.channels.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.*;
 import java.util.*;
 import java.util.function.*;
@@ -50,9 +50,15 @@ public abstract class Zink  implements Closeable
      * @throws IOException if an I/O error occurs when opening the file
      */
     public static Stream<ZRec> stream(Path path) throws IOException {
-        FileLEInput input = new FileLEInput(path);
-        Stream<ZRec> stream = StreamSupport.stream(new Zpliterator(input), false);
-        stream.onClose(input::close);
+        Zpliterator spliterator = new Zpliterator(Files.newByteChannel(path));
+        Stream<ZRec> stream = StreamSupport.stream(spliterator, false);
+        stream.onClose(() -> {
+            try {
+                spliterator.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
         return stream;
     }
 
@@ -62,7 +68,7 @@ public abstract class Zink  implements Closeable
      * @return a Stream of ZRec records
      */
     public static Stream<ZRec> stream(byte[] zip) {
-        return StreamSupport.stream(new Zpliterator(new ByteArrayLEInput(zip)), false);
+        return StreamSupport.stream(new Zpliterator(new ByteArrayChannel(zip)), false);
     }
 
     /**
@@ -79,7 +85,7 @@ public abstract class Zink  implements Closeable
             case Loc loc -> Stream.of(loc.toZip64());
             case Desc desc -> Stream.of(desc.toZip64());
             case Cen cen -> Stream.of(cen.toZip64());
-            case Eoc eoc -> Stream.of(Eoc64Rec.of(eoc), Eoc64Loc.of(eoc), eoc);
+            case Eoc eoc -> Stream.of(Eoc64Rec.of(eoc), Eoc64Loc.of(eoc), eoc.toZip64());
             default -> Stream.of(r);
         };
     }
@@ -188,7 +194,7 @@ public abstract class Zink  implements Closeable
     // Private implemetation members
     private static Collector<ZRec, Zink, Path> toFile(Path path, ZCollector collector) {
         try {
-            return new ZinkCollector<Path>(new StreamZink(collector, new FileOutputStream(path.toFile()))) {
+            return new ZinkCollector<Path>(new StreamZink(collector, new FileOutputStream(path.toFile()).getChannel())) {
                 @Override
                 public Function<Zink, Path> finisher() {
                     return (z) -> {
@@ -207,7 +213,7 @@ public abstract class Zink  implements Closeable
     }
     private static Collector<ZRec, Zink, byte[]> toByteArray(ZCollector collector) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        return new ZinkCollector<byte[]>(new StreamZink(collector, out)) {
+        return new ZinkCollector<byte[]>(new StreamZink(collector, Channels.newChannel(out))) {
             @Override
             public Function<Zink, byte[]> finisher() {
                 return (z) -> {
@@ -222,6 +228,115 @@ public abstract class Zink  implements Closeable
         };
     }
 
+    /**
+     * Return a ZRec stream combining the entries of first stream followed by the entries of the second stream
+     * @param first the first stream
+     * @param second the second stream
+     * @return a stream with the entries of the first stream followed by the entries of the second stream
+     */
+    public static Stream<ZRec> concat(Stream<ZRec> first, Stream<ZRec> second) {
+
+        ConcatZpliterator concatZpliterator = new ConcatZpliterator(first, second);
+
+        return StreamSupport.stream(concatZpliterator, false);
+    }
+
+    private static class ConcatZpliterator extends Spliterators.AbstractSpliterator<ZRec> implements Consumer<ZRec> {
+
+        private final Spliterator<ZRec> a;
+        private final Spliterator<ZRec> b;
+        private ZRec rec;
+        private Cen aCen;
+        private Cen bCen;
+        private Eoc aEoc;
+        private boolean aCenFound;
+        private boolean bCenFound;
+        private boolean aEocFound;
+        private boolean bEocFound;
+
+        ConcatZpliterator(Stream<ZRec> aStream, Stream<ZRec> bStream) {
+            super(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.DISTINCT |
+                    Spliterator.IMMUTABLE | Spliterator.NONNULL);
+            a = aStream.spliterator();
+            b = bStream.spliterator();
+        }
+
+        @Override
+        public boolean tryAdvance(Consumer<? super ZRec> action) {
+            if (!aCenFound) {
+                if (a.tryAdvance(this)) {
+                    if (rec instanceof Cen cen) {
+                        aCen = cen;
+                        aCenFound = true;
+                    } else {
+                        action.accept(rec);
+                        return true;
+                    }
+                } else {
+                    return false;
+                }
+            }
+
+            if (!bCenFound) {
+                if (b.tryAdvance(this)) {
+                    if (rec instanceof Cen cen) {
+                        bCen = cen;
+                        action.accept(aCen);
+                        bCenFound = true;
+                    } else {
+                        action.accept(rec);
+                    }
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            if (!aEocFound) {
+                if (a.tryAdvance(this)) {
+                    if (rec instanceof Eoc eoc) {
+                        aEoc = eoc;
+                        aEocFound = true;
+                        action.accept(bCen);
+                    } else {
+                        action.accept(rec);
+                    }
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            if (!bEocFound) {
+                if (b.tryAdvance(this)) {
+                    if (rec instanceof Eoc eoc) {
+                        bEocFound = true;
+                        Eoc merged = new Eoc(aEoc.thisDisk(),
+                                aEoc.startDisk(),
+                                (short) (aEoc.diskEntries() + eoc.diskEntries()),
+                                (short) (aEoc.totalEntries() + eoc.totalEntries()),
+                                aEoc.cenSize() + eoc.cenSize(),
+                                (int) (aEoc.cenOffset() + eoc.cenOffset()),
+                                aEoc.comment());
+                        action.accept(merged);
+                        return false;
+                    } else {
+                        action.accept(rec);
+                        return true;
+                    }
+                } else {
+                    return false;
+                }
+            }
+
+            return false;
+        }
+
+
+        @Override
+        public void accept(ZRec zRec) {
+            rec = zRec;
+        }
+    }
 
     private abstract static class ZinkCollector<R> implements Collector<ZRec, Zink, R> {
         private final Zink zink;
@@ -261,15 +376,15 @@ public abstract class Zink  implements Closeable
 
     private static class StreamZink extends Zink {
 
-        private final LEOutputStream out;
+        private final WritableByteChannel out;
         private final Consumer<ZRec> trace;
         private long written = 0L;
         private long offset;
 
         private final Function<ZRec, ZRec> offsetFixer;
 
-        StreamZink(ZCollector collector, OutputStream out) {
-            this.out = new LEOutputStream(out);
+        StreamZink(ZCollector collector, WritableByteChannel out) {
+            this.out = out;
             this.offsetFixer = collector.fixOffsets ? new OffsetFixer() : Function.identity();
             this.trace = collector.trace;
         }
@@ -292,9 +407,8 @@ public abstract class Zink  implements Closeable
         @Override
         void write(ZRec rec) throws IOException {
 
-            long location = out.written;
-            if (this.offset != location) {
-                throw new IllegalStateException("Offset does not match location");
+            if (out instanceof SeekableByteChannel seek) {
+                assert this.offset != seek.position();
             }
             offset += rec.sizeOf();
 
@@ -313,298 +427,118 @@ public abstract class Zink  implements Closeable
         }
     }
 
-    static interface LEInput {
-        long position();
-        long remaining();
-        int getInt();
-        int getInt(long position);
-        long getLong();
-        void position(long position);
-        short getShort();
-        int read(byte[] buf, int off, int len);
+    private static class ByteArrayChannel implements SeekableByteChannel {
+        private final byte[] bytes;
+        private int position;
+        private boolean closed;
 
-        void close();
-    }
-
-    private static class ByteArrayLEInput implements LEInput {
-        final ByteBuffer buffer;
-
-        ByteArrayLEInput(byte[] bytes) {
-            buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        ByteArrayChannel(byte[] bytes) {
+            this.bytes = bytes;
         }
 
         @Override
-        public long position() {
-            return buffer.position();
+        public boolean isOpen() {
+            return !closed;
         }
 
         @Override
-        public long remaining() {
-            return buffer.remaining();
+        public void close() throws IOException {
+            closed = true;
         }
 
         @Override
-        public int getInt() {
-            return buffer.getInt();
+        public int read(ByteBuffer dst) throws IOException {
+            int len = Math.min(remaining(), dst.remaining());
+            dst.put(bytes, position, len);
+            position += len;
+            return len;
+        }
+
+        private int remaining() {
+            return bytes.length - position;
         }
 
         @Override
-        public int getInt(long position) {
-            return buffer.getInt((int) position);
+        public int write(ByteBuffer src) throws IOException {
+            throw new IllegalStateException("Not implemented");
         }
 
         @Override
-        public long getLong() {
-            return buffer.getLong();
+        public long position() throws IOException {
+            return position;
         }
 
         @Override
-        public void position(long position) {
-            buffer.position((int) position);
+        public SeekableByteChannel position(long newPosition) throws IOException {
+            if(newPosition > bytes.length) {
+                throw new ArrayIndexOutOfBoundsException();
+            }
+            position = (int) newPosition;
+            return this;
         }
 
         @Override
-        public short getShort() {
-            return buffer.getShort();
-        }
-        @Override
-        public int read(byte[] buf, int off, int len) {
-            int lim = Math.min(len, buffer.remaining());
-            buffer.get(buf, off, lim);
-            return lim;
+        public long size() throws IOException {
+            return bytes.length;
         }
 
         @Override
-        public void close() {
-
+        public SeekableByteChannel truncate(long size) throws IOException {
+            throw new IllegalStateException("Not implemented");
         }
     }
 
-    private static class FileLEInput implements LEInput {
+    private static class SeekableByteChannelWriter implements FileData.Writer {
 
-        private final FileChannel channel;
-        private final ByteBuffer buffer = ByteBuffer.allocate(512).order(ByteOrder.LITTLE_ENDIAN);
-
-        FileLEInput(Path file) {
-            try {
-                this.channel = FileChannel.open(file, StandardOpenOption.READ);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public long position() {
-            try {
-                return channel.position();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public long remaining() {
-            try {
-                return channel.size() - channel.position();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public int getInt() {
-            try {
-                buffer.limit(Integer.BYTES).rewind();
-                channel.read(buffer);
-                return buffer.getInt(0);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public int getInt(long position) {
-            try {
-                buffer.limit(Integer.BYTES).rewind();
-                channel.read(buffer, position);
-                return buffer.getInt(0);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public long getLong() {
-            try {
-                buffer.limit(Long.BYTES).rewind();
-                channel.read(buffer);
-                return buffer.getLong(0);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public void position(long position) {
-            try {
-                channel.position(position);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public short getShort() {
-            try {
-                buffer.limit(Short.BYTES).rewind();
-                channel.read(buffer);
-                return buffer.getShort(0);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public int read(byte[] buf, int off, int len) {
-            try {
-                int lim = len;
-                if (remaining() < lim) {
-                    lim = (int) remaining();
-                }
-
-                int rem = lim;
-                while (rem > 0) {
-                    buffer.limit(rem).rewind();
-                    int read = channel.read(buffer);
-                    buffer.rewind().get(buf, off, read);
-                    off += read;
-                    rem -= read;
-                }
-
-                return lim;
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public void close() {
-            try {
-                channel.close();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    static class LEOutputStream extends FilterOutputStream {
-
-        private final byte[] bytes = new byte[Long.BYTES];
-        private final ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
-        private long written = 0L;
-
-        LEOutputStream(OutputStream out) {
-            super(out);
-        }
-
-        void writeShort(short num) throws IOException {
-            buffer.rewind().putShort(0, num);
-            out.write(bytes, 0, Short.BYTES);
-            written += Short.BYTES;
-        }
-
-        void writeInt(int num) throws IOException {
-            buffer.rewind().putInt(0, num);
-            out.write(bytes, 0, Integer.BYTES);
-            written += Integer.BYTES;
-        }
-
-        void writeLong(long num) throws IOException {
-            buffer.rewind().putLong(0, num);
-            out.write(bytes, 0, Long.BYTES);
-            written += Long.BYTES;
-        }
-
-        void writeInts(int... nums) throws IOException {
-            for (int num : nums) {
-                writeInt(num);
-            }
-        }
-
-        void writeShorts(short... nums) throws IOException {
-            for (short num : nums) {
-                writeShort(num);
-            }
-        }
-
-        void writeLongs(long... nums) throws IOException {
-            for (long num : nums) {
-                writeLong(num);
-            }
-        }
-
-        public void skip(long skip) throws IOException {
-            if (out instanceof FileOutputStream fos) {
-                FileChannel channel = fos.getChannel();
-                channel.position(channel.position() + skip);
-                written += skip;
-            } else {
-                throw new IllegalArgumentException("Cannot skip this stream");
-            }
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-            written++;
-            super.write(b);
-        }
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            written += len;
-            out.write(b, off, len);
-        }
-    }
-
-    private static class LEInputWriter implements FileData.Writer {
-
-        private final Zink.LEInput input;
+        private final SeekableByteChannel input;
         private final long off;
         private final long len;
+        private final Supplier<ByteBuffer> bufferSource;
 
-        LEInputWriter(Zink.LEInput input, long off, long len) {
+        SeekableByteChannelWriter(SeekableByteChannel input, long off, long len, Supplier<ByteBuffer> bufferSource) {
             this.input = input;
             this.off = off;
             this.len = len;
+            this.bufferSource = bufferSource;
         }
+
         @Override
-        public void write(OutputStream out) throws IOException {
-            long orig = input.position();
-            input.position(off);
-            try {
-                int size = 512;
-                if (len < size) {
-                    size = (int) len;
-                }
-                byte[] buf = new byte[size];
+        public void write(WritableByteChannel out) throws IOException {
+            if (input instanceof FileChannel fileChannel) {
                 long rem = len;
+                long pos = off;
                 while (rem > 0) {
-                    int len = buf.length;
-                    if (rem < len) {
-                        len = (int) rem;
-                    }
-                    int read = input.read(buf, 0, len);
-                    out.write(buf, 0, read);
-                    rem -= read;
+                    long n = fileChannel.transferTo(pos, rem, out);
+                    rem -= n;
+                    pos += n;
                 }
-            } finally {
-                input.position(orig);
+            } else {
+                long orig = input.position();
+                input.position(off);
+                try {
+                    ByteBuffer buf = bufferSource.get();
+                    long rem = len;
+                    while (rem > 0) {
+                        int len = buf.capacity();
+                        if (rem < len) {
+                            len = (int) rem;
+                        }
+                        buf.limit(len).rewind();
+                        int read = input.read(buf);
+                        buf.flip();
+                        out.write(buf);
+                        rem -= read;
+                    }
+                } finally {
+                    input.position(orig);
+                }
             }
         }
     }
 
-    static byte[] getBytes(LEInput input, int len) {
+    static byte[] getBytes(ReadableByteChannel channel, int len) throws IOException {
         byte[] bytes = new byte[len];
-        input.read(bytes, 0, bytes.length);
+        channel.read(ByteBuffer.wrap(bytes));
         return bytes;
     }
 
@@ -655,39 +589,50 @@ public abstract class Zink  implements Closeable
     }
 
     private static class Zpliterator extends Spliterators.AbstractSpliterator<ZRec> {
-        private final LEInput input;
+        private final SeekableByteChannel channel;
+        private final long size;
         private States state;
         private Loc loc;
 
         private long cenIndex;
         private long offset = 0;
+        private Inflater inflater;
+        private ByteBuffer readBuf;
+        private ByteBuffer writeBuf;
+        private ByteBuffer fileDataBuffer;
+        private ByteBuffer headerBuffer = ByteBuffer.allocate(52).order(ByteOrder.LITTLE_ENDIAN);
+
+        public void close() throws IOException {
+            channel.close();
+            inflater.end();
+        }
 
         enum States {
             SIG, FILE_DATA, DATA_DESC
         }
 
-        public Zpliterator(LEInput input) {
+        public Zpliterator(SeekableByteChannel channel) {
             super(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.DISTINCT |
                     Spliterator.IMMUTABLE | Spliterator.NONNULL);
             this.state = States.SIG;
-            this.input = input;
-        }
-
-        long position() {
-            return input.position();
+            this.channel = channel;
+            try {
+                this.size = channel.size();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
         public boolean tryAdvance(Consumer<? super ZRec> action) {
-            if (input.remaining() == 0) {
-                return false;
-            }
             try {
+                if (offset >= size) {
+                    return false;
+                }
                 ZRec next = parseNext();
                 long nextOffset = offset + next.sizeOf();
-                long position = position();
-                if (position != nextOffset) {
-                    throw new IllegalStateException("Unexcpected offset");
+                if (channel instanceof SeekableByteChannel sbc) {
+                    assert (sbc.position() != nextOffset);
                 }
                 offset = nextOffset;
                 action.accept(next);
@@ -711,17 +656,23 @@ public abstract class Zink  implements Closeable
                 case DATA_DESC -> {
                     state = States.SIG;
 
-                    int sigOrCrc = input.getInt();
+                    boolean zip64 = loc.isZip64();
+
+                    int sigOrCrc = getInt();
 
                     if (sigOrCrc == Desc.SIG) {
-                        boolean zip64 = isLocOrCenSig(input.getInt(input.position() + 20));
-                        yield Desc.read(input, sigOrCrc, true, zip64);
+                        yield Desc.read(channel, headerBuffer, sigOrCrc, true, zip64);
                     } else {
-                        boolean zip64 = isLocOrCenSig(input.getInt(input.position() + 16));
-                        yield Desc.read(input, sigOrCrc, false, zip64);
+                        yield Desc.read(channel, headerBuffer, sigOrCrc, false, zip64);
                     }
                 }
             };
+        }
+
+        private int getInt() throws IOException {
+            headerBuffer.clear().limit(Integer.BYTES);
+            channel.read(headerBuffer);
+            return headerBuffer.getInt(0);
         }
 
         private boolean isLocOrCenSig(int number) {
@@ -729,37 +680,47 @@ public abstract class Zink  implements Closeable
         }
 
         private FileData readData() throws IOException {
-            long start = input.position();
+            long start = offset;
 
-            if (loc.method() == loc.DEFLATE) {
+            if (loc.method() == Loc.DEFLATE) {
 
                 try {
-                    // Skip
-                    Inflater inf = new Inflater(true);
-
-                    byte[] readBuf = new byte[512];
-                    byte[] writeBuf = new byte[512];
+                    // Lazy init of inflater, read and write buffers
+                    if (inflater == null) {
+                        inflater = new Inflater(true);
+                    } else {
+                        inflater.reset();
+                    }
+                    if (readBuf == null) {
+                        readBuf = ByteBuffer.allocate(1024);
+                    }
+                    if (writeBuf == null) {
+                        writeBuf = ByteBuffer.allocate(1024);
+                    }
 
                     int n;
-                    while (!inf.finished() && !inf.needsDictionary()) {
+                    while (!inflater.finished() && !inflater.needsDictionary()) {
                         do {
-                            if (inf.finished() || inf.needsDictionary()) {
+                            writeBuf.clear();
+                            if (inflater.finished() || inflater.needsDictionary()) {
                                 break;
                             }
-                            if (inf.needsInput()) {
-                                int len = input.read(readBuf, 0, readBuf.length);
+                            if (inflater.needsInput()) {
+                                readBuf.clear();
+                                int len = channel.read(readBuf);
                                 if (len == -1) {
                                     throw new EOFException("Unexpected end of ZLIB input stream");
                                 }
-                                inf.setInput(readBuf, 0, readBuf.length);
+                                readBuf.flip();
+                                inflater.setInput(readBuf);
                             }
-                        } while ((n = inf.inflate(writeBuf, 0, writeBuf.length)) == 0);
+                        } while ((n = inflater.inflate(writeBuf)) == 0);
                     }
 
-                    long csize = inf.getBytesRead();
-                    long size = inf.getBytesWritten();
-                    input.position(start + csize);
-                    return new FileData(new LEInputWriter(input, (int) start, csize), csize);
+                    long csize = inflater.getBytesRead();
+                    long size = inflater.getBytesWritten();
+                    channel.position(start + csize);
+                    return new FileData(new SeekableByteChannelWriter(channel, (int) start, csize, this::getFileDataBuffer), csize);
                 } catch (DataFormatException e) {
                     throw new IOException(e.getMessage(), e);
                 }
@@ -767,26 +728,34 @@ public abstract class Zink  implements Closeable
 
             } else {
                 long size = loc.isZip64() ? loc.extra(ExtZip64.class).get().csize() : loc.csize();
-                input.position(start + size);
-                return new FileData(new LEInputWriter(input, (int) start, size), size);
+                channel.position(start + size);
+                return new FileData(new SeekableByteChannelWriter(channel, (int) start, size, this::getFileDataBuffer), size);
             }
         }
-        private ZRec readSig() {
-            int sig = input.getInt();
+
+        private ByteBuffer getFileDataBuffer() {
+            if (fileDataBuffer == null) {
+                fileDataBuffer = ByteBuffer.allocate(1024);
+            }
+            return fileDataBuffer;
+        }
+
+        private ZRec readSig() throws IOException {
+            int sig = getInt();
 
             switch (sig) {
                 case Loc.SIG:
-                    loc = Loc.read(input);
+                    loc = Loc.read(channel, headerBuffer);
                     state = States.FILE_DATA;
                     return loc;
                 case Cen.SIG:
-                    return Cen.read(cenIndex++, input);
+                    return Cen.read(channel, headerBuffer);
                 case Eoc.SIG:
-                    return Eoc.read(input);
+                    return Eoc.read(channel, headerBuffer);
                 case Eoc64Rec.SIG:
-                    return Eoc64Rec.read(input);
+                    return Eoc64Rec.read(channel, headerBuffer);
                 case Eoc64Loc.SIG:
-                    return Eoc64Loc.read(input);
+                    return Eoc64Loc.read(channel, headerBuffer);
                 default: throw new IllegalArgumentException("Unknown sig: " + Integer.toHexString(sig));
             }
         }
@@ -834,17 +803,21 @@ public abstract class Zink  implements Closeable
                     // Record CEN size
                     cenSize = currentOffset - cenOffset;
                     // Adust CEN size and offset
-                    yield eoc64.cenOff(cenOffset).cenSize(cenSize);
+                    yield eoc64.cenOff(cenOffset).cenSize(cenSize)
+                            .totalEntries(cenIdx);
                 }
                 case Eoc64Loc eoc64Loc -> {
                     yield eoc64Loc.eocOff(eoc64Off);
                 }
-                case Eoc eoc -> {
+                case Eoc eoc when !eoc.isZip64() -> {
                     if (cenSize == 0) { // No Eoc64Rec
                         cenSize = currentOffset - cenOffset;
                     }
                     // Adust CEN size and offset
-                    yield eoc.cenOffset((int) cenOffset).cenSize((int) cenSize);
+                    yield eoc.cenOffset((int) cenOffset)
+                            .cenSize((int) cenSize)
+                            .diskEntries((short) cenIdx)
+                            .totalEntries((short) cenIdx);
                 }
                 default -> rec;
             };
@@ -891,7 +864,7 @@ public abstract class Zink  implements Closeable
                     row("data", "%d bytes".formatted(data.size()), data.size());
                 }
                 case Desc desc -> {
-                    header("Data Desciptor");
+                    header("Data Descriptor");
                     if (desc.signed()) {
                         row("signature", "0x%08x".formatted(Desc.SIG), Integer.BYTES);
                     }

@@ -24,12 +24,17 @@
 package jdk.test.lib.zink;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static jdk.test.lib.zink.Zink.*;
@@ -61,20 +66,23 @@ public record Loc(int sig,
     private static final int ZIP64_SIZE = 0xFFFFFFFF;
     private static final int SIZE = 30;
 
-    static Loc read(LEInput input) {
-        short version = input.getShort();
-        short flags = input.getShort();
-        short method = input.getShort();
-        short time = input.getShort();
-        short date = input.getShort();
-        int crc = input.getInt();
-        int csize = input.getInt();
-        int size = input.getInt();
-        short nlen = input.getShort();
-        short elen = input.getShort();
+    static Loc read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
+        channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
+        buf.flip();
 
-        byte[] name = getBytes(input, nlen);
-        byte[] extraBytes = getBytes(input, elen);
+        short version = buf.getShort();
+        short flags = buf.getShort();
+        short method = buf.getShort();
+        short time = buf.getShort();
+        short date = buf.getShort();
+        int crc = buf.getInt();
+        int csize = buf.getInt();
+        int size = buf.getInt();
+        short nlen = buf.getShort();
+        short elen = buf.getShort();
+
+        byte[] name = getBytes(channel, nlen);
+        byte[] extraBytes = getBytes(channel, elen);
 
         ExtField[] extra = parseExt(extraBytes);
 
@@ -97,17 +105,50 @@ public record Loc(int sig,
         }
         return loc;
     }
-    void write(Zink.LEOutputStream out) throws IOException {
-        out.writeInt(sig);
-        out.writeShorts(version, flags, method, time, date);
-        out.writeInts(crc, csize, size);
-        out.writeShorts(nlen, elen);
-        out.write(name);
+
+    public static Predicate<? super ZRec> remove(Predicate<Loc> predicate) {
+        return filter(predicate.negate());
+    }
+    public static Predicate<? super ZRec> filter(Predicate<Loc> predicate) {
+        return new Predicate<ZRec>() {
+            Loc currentLoc;
+            @Override
+            public boolean test(ZRec zRec) {
+                return switch (zRec) {
+                    case Loc loc -> {
+                        currentLoc = loc;
+                        yield predicate.test(currentLoc);
+                    }
+                    case Desc desc -> predicate.test(currentLoc);
+                    case FileData fileData -> predicate.test(currentLoc);
+                    default -> true;
+                };
+            }
+        };
+    }
+
+    void write(WritableByteChannel out) throws IOException {
+        ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(sig);
+        buf.putShort(version);
+        buf.putShort(flags);
+        buf.putShort(method);
+        buf.putShort(time);
+        buf.putShort(date);
+        buf.putInt(crc);
+        buf.putInt(csize);
+        buf.putInt(size);
+        buf.putShort(nlen);
+        buf.putShort(elen);
+        buf.put(name);
+
         for (ExtField e : extra) {
             byte[] data = e.data();
-            out.writeShorts(e.id(), e.dsize());
-            out.write(data);
+            buf.putShort(e.id());
+            buf.putShort(e.dsize());
+            buf.put(data);
         }
+        out.write(buf.flip());
     }
 
     public static Function<ZRec, ZRec> map(Function<Loc, Loc> mapper) {
@@ -135,12 +176,15 @@ public record Loc(int sig,
         return rename(renamer).andThen(Cen.rename(renamer));
     }
 
-    public static Function<ZRec, ZRec> named(String name, Function<Loc, Loc> mapper) {
-        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+    public static Function<ZRec, ZRec> map(Predicate<Loc> locPredicate, Function<Loc, Loc> mapper) {
         return r -> switch (r) {
-            case Loc loc when loc.isNamed(nameBytes)-> mapper.apply(loc);
+            case Loc loc when locPredicate.test(loc) -> mapper.apply(loc);
             default -> r;
         };
+    }
+    public static Predicate<Loc> named(String name) {
+        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+        return l -> l.isNamed(nameBytes);
     }
 
     public boolean isZip64() {
@@ -188,7 +232,7 @@ public record Loc(int sig,
     }
 
     private short sizeOf(ExtField[] extra) {
-        return (short) Stream.of(extra).mapToInt(e -> e.data().length + 4).sum();
+        return (short) Stream.of(extra).mapToInt(e -> e.dsize() + 4).sum();
     }
     public <T extends ExtField> Optional<T> extra(Class<T> type) {
         return Stream.of(extra)

@@ -25,12 +25,13 @@ package jdk.test.lib.zink;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.channels.WritableByteChannel;
 
 /**
  * Represents the File Data in the ZIP file format
  */
 public record FileData(Writer writer, long size) implements ZRec {
-    void write(OutputStream out) throws IOException {
+    void write(WritableByteChannel out) throws IOException {
         writer.write(out);
     }
 
@@ -40,6 +41,6 @@ public record FileData(Writer writer, long size) implements ZRec {
     }
 
     public interface Writer {
-        public void write(OutputStream outputStream) throws IOException;
+        public void write(WritableByteChannel out) throws IOException;
     }
 }
