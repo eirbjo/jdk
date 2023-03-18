@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2003, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,8 +22,27 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package jdk.internal.net.http.common;
 
-/**
- * Provides a factory for constructing links.
- */
-package jdk.javadoc.internal.doclets.toolkit.util.links;
+import java.net.http.HttpHeaders;
+
+public class HeaderDecoder extends ValidatingHeadersConsumer {
+
+    private final HttpHeadersBuilder headersBuilder;
+
+    public HeaderDecoder() {
+        this.headersBuilder = new HttpHeadersBuilder();
+    }
+
+    @Override
+    public void onDecoded(CharSequence name, CharSequence value) {
+        String n = name.toString();
+        String v = value.toString();
+        super.onDecoded(n, v);
+        headersBuilder.addHeader(n, v);
+    }
+
+    public HttpHeaders headers() {
+        return headersBuilder.build();
+    }
+}
