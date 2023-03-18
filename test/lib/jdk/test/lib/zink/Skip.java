@@ -42,4 +42,8 @@ public record Skip(long skip) implements ZRec {
     public long sizeOf() {
         return (int) skip;
     }
+
+    public Skip skip(long skip) {
+        return new Skip(skip);
+    }
 }

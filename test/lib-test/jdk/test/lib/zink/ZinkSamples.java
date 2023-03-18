@@ -507,7 +507,7 @@ public class ZinkSamples {
 
         Path zip = Zink.stream(smallZip())
                 .flatMap(Zink.toZip64())
-                .map(Desc.map(Desc::toZip64))
+                .map(Desc.map(d -> d.zip64(true)))
                 .collect(Zink.collect()
                         .trace()
                         .toFile(Path.of("8-byte-ext64-desc.zip")));

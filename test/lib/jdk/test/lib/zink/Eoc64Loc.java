@@ -74,7 +74,15 @@ public record Eoc64Loc(int eocDisk, long eocOff, int totalDisks) implements ZRec
         return SIZE;
     }
 
+    public Eoc64Loc eocDisk(int eocDisk) {
+        return new Eoc64Loc(eocDisk, eocOff, totalDisks);
+    }
+
     public Eoc64Loc eocOff(long eocOff) {
+        return new Eoc64Loc(eocDisk, eocOff, totalDisks);
+    }
+
+    public Eoc64Loc totalDisks(int totalDisks) {
         return new Eoc64Loc(eocDisk, eocOff, totalDisks);
     }
 }

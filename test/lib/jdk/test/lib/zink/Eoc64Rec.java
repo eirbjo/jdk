@@ -110,14 +110,6 @@ public record Eoc64Rec(long size,
         return SIZE + Stream.of(extra).mapToInt(e -> 4 + e.data().length).sum();
     }
 
-    public Eoc64Rec cenOff(long cenOff) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
-    }
-
-    public Eoc64Rec cenSize(long cenSize) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
-    }
-
     public Eoc64Rec size(long size) {
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
@@ -125,9 +117,11 @@ public record Eoc64Rec(long size,
     public Eoc64Rec version(short version) {
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
+
     public Eoc64Rec extractVersion(short extractVersion) {
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
+
     public Eoc64Rec thisDisk(int thisDisk) {
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
@@ -135,15 +129,23 @@ public record Eoc64Rec(long size,
     public Eoc64Rec startDisk(int startDisk) {
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
+
     public Eoc64Rec numEntries(long numEntries) {
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
+
     public Eoc64Rec totalEntries(long totalEntries) {
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
-    public Eoc64Rec cenOff(int cenOff) {
+
+    public Eoc64Rec cenSize(long cenSize) {
         return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
+
+    public Eoc64Rec cenOff(long cenOff) {
+        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+    }
+
     public Eoc64Rec extra(ExtField[] extra) {
         int sizeOfVariableData = Stream.of(extra).mapToInt(e -> 4 + e.data().length).sum();
         long size = SIZE + sizeOfVariableData - 12;

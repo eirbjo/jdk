@@ -225,6 +225,8 @@ public class ZinkTests {
                             .csize(desc.csize())
                             .size(desc.size())
                             .crc(desc.crc());
+                    case FileData fileData -> fileData.writer(fileData.writer())
+                            .size(fileData.size());
                     case Cen cen -> cen.sig(cen.sig())
                             .version(cen.version())
                             .extractVersion(cen.extractVersion())
@@ -254,6 +256,9 @@ public class ZinkTests {
                             .cenSize(rec.cenSize())
                             .cenOff(rec.cenOff())
                             .extra(rec.extra());
+                    case Eoc64Loc loc -> loc.eocDisk(loc.eocDisk())
+                            .eocOff(loc.eocOff())
+                            .totalDisks(loc.totalDisks());
                     case Eoc eoc -> eoc.thisDisk(eoc.thisDisk())
                             .startDisk(eoc.startDisk())
                             .diskEntries(eoc.diskEntries())
@@ -261,8 +266,7 @@ public class ZinkTests {
                             .cenSize(eoc.cenSize())
                             .cenOffset(eoc.cenOffset())
                             .comment(eoc.comment());
-                    default -> r;
-
+                    case Skip skip -> skip.skip(skip.skip());
                 }).collect(Zink.toByteArray());
 
         assertEquals(transformed, zip);

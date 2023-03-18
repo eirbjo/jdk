@@ -83,7 +83,7 @@ public abstract class Zink  implements Closeable
     public static Function<ZRec, Stream<? extends ZRec>> toZip64() {
         return r -> switch (r) {
             case Loc loc -> Stream.of(loc.toZip64());
-            case Desc desc -> Stream.of(desc.toZip64());
+            case Desc desc -> Stream.of(desc.zip64(true));
             case Cen cen -> Stream.of(cen.toZip64());
             case Eoc eoc -> Stream.of(Eoc64Rec.of(eoc), Eoc64Loc.of(eoc), eoc.toZip64());
             default -> Stream.of(r);
@@ -316,6 +316,7 @@ public abstract class Zink  implements Closeable
                                 (short) (aEoc.totalEntries() + eoc.totalEntries()),
                                 aEoc.cenSize() + eoc.cenSize(),
                                 (int) (aEoc.cenOffset() + eoc.cenOffset()),
+                                aEoc.clen(),
                                 aEoc.comment());
                         action.accept(merged);
                         return false;
