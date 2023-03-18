@@ -267,6 +267,7 @@ public class ZinkTests {
                             .totalEntries(eoc.totalEntries())
                             .cenSize(eoc.cenSize())
                             .cenOffset(eoc.cenOffset())
+                            .clen(eoc.clen())
                             .comment(eoc.comment());
                     case Skip skip -> skip.skip(skip.skip());
                 }).collect(Zink.toByteArray());

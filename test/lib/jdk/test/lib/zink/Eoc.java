@@ -28,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
-import java.util.Arrays;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -143,7 +142,7 @@ public record Eoc(short thisDisk,
         return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
-    public Eoc cenOffset(short clen) {
+    public Eoc clen(short clen) {
         return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
