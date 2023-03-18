@@ -1,12 +1,10 @@
 /*
- * Copyright (c) 2015, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.  Oracle designates this
- * particular file as subject to the "Classpath" exception as provided
- * by Oracle in the LICENSE file that accompanied this code.
+ * published by the Free Software Foundation.
  *
  * This code is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -22,17 +20,20 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-/**
- * This package comprises the interfaces and classes used to define the
- * signing mechanism used by the {@code jarsigner} tool.
- * <p>
- * Clients may override the default signing mechanism of the {@code jarsigner}
- * tool by supplying an alternative implementation of
- * {@link com.sun.jarsigner.ContentSigner}.
- *
- * The classes in this package have been deprecated and will be removed in
- * a future release. New classes should not be added to this package.
- * Use the {@link jdk.security.jarsigner.JarSigner} API to sign JAR files.
- */
 
-package com.sun.jarsigner;
+package pkg3;
+
+public interface I {
+
+    int hashCode();
+
+    boolean equals(Object obj);
+
+    String toString();
+
+    // No matter what your IDE might show you, from JLS 9.6.4.4 it follows that
+    // the "clone" (as well as currently deprecated "finalize") method cannot
+    // be overridden by an interface method in the same way "hashCode", "equals"
+    // and "toString" can. This is because "clone" is not public.
+    Object clone();
+}
