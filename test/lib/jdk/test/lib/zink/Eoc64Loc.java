@@ -33,7 +33,7 @@ import java.util.function.Function;
 /**
  * Represents the Zip64 End of Central Directory locator in the ZIP file format
  */
-public record Eoc64Loc(int eocDisk, long eocOff, int totalDisks) implements ZRec {
+public record Eoc64Loc(int sig, int eocDisk, long eocOff, int totalDisks) implements ZRec {
     static final int SIG = 0x07064b50;
     private static final int SIZE = 20;
 
@@ -45,12 +45,12 @@ public record Eoc64Loc(int eocDisk, long eocOff, int totalDisks) implements ZRec
         long cenOff = buf.getLong();
         int totalDisks = buf.getInt();
 
-        return new Eoc64Loc(eocDisk, cenOff, totalDisks);
+        return new Eoc64Loc(SIG, eocDisk, cenOff, totalDisks);
     }
 
     void write(WritableByteChannel out) throws IOException {
         ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
-        buf.putInt(SIG);
+        buf.putInt(sig);
         buf.putInt(eocDisk);
         buf.putLong(eocOff);
         buf.putInt(totalDisks);
@@ -66,7 +66,7 @@ public record Eoc64Loc(int eocDisk, long eocOff, int totalDisks) implements ZRec
     }
 
     public static Eoc64Loc of(Eoc eoc) {
-        return new Eoc64Loc(eoc.startDisk(), 0, 1);
+        return new Eoc64Loc(SIG, eoc.startDisk(), 0, 1);
     }
 
     @Override
@@ -74,15 +74,19 @@ public record Eoc64Loc(int eocDisk, long eocOff, int totalDisks) implements ZRec
         return SIZE;
     }
 
+    public Eoc64Loc sig(int sig) {
+        return new Eoc64Loc(sig, eocDisk, eocOff, totalDisks);
+    }
+
     public Eoc64Loc eocDisk(int eocDisk) {
-        return new Eoc64Loc(eocDisk, eocOff, totalDisks);
+        return new Eoc64Loc(sig, eocDisk, eocOff, totalDisks);
     }
 
     public Eoc64Loc eocOff(long eocOff) {
-        return new Eoc64Loc(eocDisk, eocOff, totalDisks);
+        return new Eoc64Loc(sig, eocDisk, eocOff, totalDisks);
     }
 
     public Eoc64Loc totalDisks(int totalDisks) {
-        return new Eoc64Loc(eocDisk, eocOff, totalDisks);
+        return new Eoc64Loc(sig, eocDisk, eocOff, totalDisks);
     }
 }

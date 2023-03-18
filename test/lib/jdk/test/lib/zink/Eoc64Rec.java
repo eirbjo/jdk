@@ -37,7 +37,8 @@ import static jdk.test.lib.zink.Zink.parseExt;
 /**
  * Represents the Zip64 End of Central Directory record in the ZIP file format
  */
-public record Eoc64Rec(long size,
+public record Eoc64Rec(int sig,
+                       long size,
                        short version,
                        short extractVersion,
                        int thisDisk,
@@ -74,12 +75,12 @@ public record Eoc64Rec(long size,
         long variableSize =  size +12 - SIZE;
         byte[] extData = getBytes(channel, (int) variableSize);
         ExtField[] extra = parseExt(extData);
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(SIG, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     void write(WritableByteChannel out) throws IOException {
         ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
-        buf.putInt(SIG);
+        buf.putInt(sig);
         buf.putLong(size);
         buf.putShort(version);
         buf.putShort(extractVersion);
@@ -102,7 +103,7 @@ public record Eoc64Rec(long size,
     }
 
     public static Eoc64Rec of(Eoc eoc) {
-        return new Eoc64Rec(SIZE - 12, (short) 45, (short) 45, eoc.thisDisk(), eoc.startDisk(), eoc.diskEntries(), eoc.totalEntries(), eoc.cenSize(), eoc.cenOffset(), new ExtField[0]);
+        return new Eoc64Rec(SIG, SIZE - 12, (short) 45, (short) 45, eoc.thisDisk(), eoc.startDisk(), eoc.diskEntries(), eoc.totalEntries(), eoc.cenSize(), eoc.cenOffset(), new ExtField[0]);
     }
 
     @Override
@@ -110,45 +111,49 @@ public record Eoc64Rec(long size,
         return SIZE + Stream.of(extra).mapToInt(e -> 4 + e.data().length).sum();
     }
 
+    public Eoc64Rec sig(int sig) {
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+    }
+
     public Eoc64Rec size(long size) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     public Eoc64Rec version(short version) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     public Eoc64Rec extractVersion(short extractVersion) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     public Eoc64Rec thisDisk(int thisDisk) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     public Eoc64Rec startDisk(int startDisk) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     public Eoc64Rec numEntries(long numEntries) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     public Eoc64Rec totalEntries(long totalEntries) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     public Eoc64Rec cenSize(long cenSize) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     public Eoc64Rec cenOff(long cenOff) {
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 
     public Eoc64Rec extra(ExtField[] extra) {
         int sizeOfVariableData = Stream.of(extra).mapToInt(e -> 4 + e.data().length).sum();
         long size = SIZE + sizeOfVariableData - 12;
-        return new Eoc64Rec(size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
+        return new Eoc64Rec(sig, size, version, extractVersion, thisDisk, startDisk, numEntries, totalEntries, cenSize, cenOff, extra);
     }
 }
