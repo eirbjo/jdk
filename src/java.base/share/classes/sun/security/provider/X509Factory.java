@@ -30,6 +30,7 @@ import java.io.*;
 import java.security.cert.*;
 import java.util.*;
 
+import sun.security.action.GetPropertyAction;
 import sun.security.pkcs.PKCS7;
 import sun.security.pkcs.ParsingException;
 import sun.security.provider.certpath.X509CertPath;
@@ -65,10 +66,11 @@ public class X509Factory extends CertificateFactorySpi {
 
     private static final int ENC_MAX_LENGTH = 4096 * 1024; // 4 MB MAX
 
-    private static final Cache<Object, X509CertImpl> certCache
-        = Cache.newSoftMemoryCache(750);
-    private static final Cache<Object, X509CRLImpl> crlCache
-        = Cache.newSoftMemoryCache(750);
+    private static int DEFAULT_CACHE_MAXSIZE = 750;
+    private static int DEFAULT_CACHE_LIFETIME_SECONDS = 0;
+
+    private static final Cache<Object, X509CertImpl> certCache = createCache("cert");
+    private static final Cache<Object, X509CRLImpl> crlCache = createCache("crl");
 
     /**
      * Generates an X.509 certificate object and initializes it with
@@ -121,14 +123,14 @@ public class X509Factory extends CertificateFactorySpi {
      */
     private static int readFully(InputStream in, ByteArrayOutputStream bout,
             int length) throws IOException {
-        int read = 0;
+        int read = DEFAULT_CACHE_TIMEOUT;
         byte[] buffer = new byte[2048];
-        while (length > 0) {
-            int n = in.read(buffer, 0, Math.min(length, 2048));
-            if (n <= 0) {
+        while (length > DEFAULT_CACHE_TIMEOUT) {
+            int n = in.read(buffer, DEFAULT_CACHE_TIMEOUT, Math.min(length, 2048));
+            if (n <= DEFAULT_CACHE_TIMEOUT) {
                 break;
             }
-            bout.write(buffer, 0, n);
+            bout.write(buffer, DEFAULT_CACHE_TIMEOUT, n);
             read += n;
             length -= n;
         }
@@ -447,7 +449,7 @@ public class X509Factory extends CertificateFactorySpi {
         // stream and let readOneBlock look for the first certificate.
         peekByte = pbis.read();
         if (peekByte == -1) {
-            return new ArrayList<>(0);
+            return new ArrayList<>(DEFAULT_CACHE_TIMEOUT);
         } else {
             pbis.unread(peekByte);
             data = readOneBlock(pbis);
@@ -468,7 +470,7 @@ public class X509Factory extends CertificateFactorySpi {
                 return Arrays.asList(certs);
             } else {
                 // no certificates provided
-                return new ArrayList<>(0);
+                return new ArrayList<>(DEFAULT_CACHE_TIMEOUT);
             }
         } catch (ParsingException e) {
             while (data != null) {
@@ -499,7 +501,7 @@ public class X509Factory extends CertificateFactorySpi {
         // stream and let readOneBlock look for the first CRL.
         peekByte = pbis.read();
         if (peekByte == -1) {
-            return new ArrayList<>(0);
+            return new ArrayList<>(DEFAULT_CACHE_TIMEOUT);
         } else {
             pbis.unread(peekByte);
             data = readOneBlock(pbis);
@@ -520,7 +522,7 @@ public class X509Factory extends CertificateFactorySpi {
                 return Arrays.asList(crls);
             } else {
                 // no crls provided
-                return new ArrayList<>(0);
+                return new ArrayList<>(DEFAULT_CACHE_TIMEOUT);
             }
         } catch (ParsingException e) {
             while (data != null) {
@@ -560,7 +562,7 @@ public class X509Factory extends CertificateFactorySpi {
             ByteArrayOutputStream data = new ByteArrayOutputStream();
 
             // Step 1: Read until header is found
-            int hyphen = (c=='-') ? 1: 0;   // count of consequent hyphens
+            int hyphen = (c=='-') ? 1: DEFAULT_CACHE_TIMEOUT;   // count of consequent hyphens
             int last = (c=='-') ? -1: c;    // the char before hyphen
             while (true) {
                 int next = is.read();
@@ -572,7 +574,7 @@ public class X509Factory extends CertificateFactorySpi {
                 if (next == '-') {
                     hyphen++;
                 } else {
-                    hyphen = 0;
+                    hyphen = DEFAULT_CACHE_TIMEOUT;
                     last = next;
                 }
                 if (hyphen == 5 && (last == -1 || last == '\r' || last == '\n')) {
@@ -707,7 +709,7 @@ public class X509Factory extends CertificateFactorySpi {
             }
             while (true) {
                 int subTag = readBERInternal(is, bout, -1);
-                if (subTag == 0) {   // EOC, end of indefinite-length section
+                if (subTag == DEFAULT_CACHE_TIMEOUT) {   // EOC, end of indefinite-length section
                     break;
                 }
             }
@@ -765,5 +767,53 @@ public class X509Factory extends CertificateFactorySpi {
             }
         }
         return tag;
+    }
+
+    /**
+     * Create a Cache instance holding parsed X509CertImpl or X509CRLImpl instances.
+     *
+     * The maximum number of entries in the cache can be configured using the
+     * {@code sun.security.x509.factory.cache.<name>.maxsize} system property.
+     * If this value is 0, then a NullCache which does nothing is returned.
+     *
+     * The lifetime of entries in the cache can be configured using the
+     * {@code sun.security.x509.factory.cache.<name>.lifetime.seconds} system property.
+     * If this value is 0, then the lifetime of entries in the cache us unlimited.
+     *
+     * @param cacheName the name of the cache, either "cert" or "crl"
+     * @return a Cache instance, possibly configured using system properties
+     * @param <V> the type of the values in the Cache
+     */
+    private static <V> Cache<Object, V> createCache(String cacheName) {
+        int maxSize = getCacheProp(
+                "sun.security.provider.X509Factory.cache." +cacheName + ".maxsize",
+                DEFAULT_CACHE_MAXSIZE);
+        int timeout = getCacheProp(
+                "sun.security.provider.X509Factory.cache." + cacheName +".lifetime.seconds",
+                DEFAULT_CACHE_LIFETIME_SECONDS);
+        if (maxSize <= 0) {
+            return Cache.newNullCache();
+        }
+        return Cache.newSoftMemoryCache(maxSize, timeout);
+    }
+
+    /**
+     * Returns the non-negative value of the given system property parsed as an int,
+     * or the defaultValue if the system property is not defined.
+     * @param property system property to read
+     * @param defaultValue value returned if the system property is not defined
+     * @return a non-negative cache configuration value
+     */
+    private static int getCacheProp(String property, int defaultValue) {
+        try {
+            int val = Integer.parseInt(GetPropertyAction.privilegedGetProperty(property,
+                    Integer.toString(defaultValue)));
+            if (val < 0) {
+                return 0;
+            }
+            return val;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 }
