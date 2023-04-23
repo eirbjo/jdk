@@ -791,7 +791,7 @@ public class X509Factory extends CertificateFactorySpi {
         int timeout = getCacheProp(
                 "sun.security.provider.X509Factory.cache." + cacheName +".lifetime.seconds",
                 DEFAULT_CACHE_LIFETIME_SECONDS);
-        if (maxSize <= 0) {
+        if (maxSize == 0) {
             return Cache.newNullCache();
         }
         return Cache.newSoftMemoryCache(maxSize, timeout);
@@ -799,19 +799,22 @@ public class X509Factory extends CertificateFactorySpi {
 
     /**
      * Returns the non-negative value of the given system property parsed as an int,
-     * or the defaultValue if the system property is not defined.
+     * or defaultValue if the system property is not defined or invalid.
      * @param property system property to read
-     * @param defaultValue value returned if the system property is not defined
+     * @param defaultValue value returned if the system property is not defined or invalid
      * @return a non-negative cache configuration value
      */
     private static int getCacheProp(String property, int defaultValue) {
+        String val = GetPropertyAction.privilegedGetProperty(property);
+        if (val == null) {
+            return defaultValue;
+        }
         try {
-            int val = Integer.parseInt(GetPropertyAction.privilegedGetProperty(property,
-                    Integer.toString(defaultValue)));
-            if (val < 0) {
+            int num = Integer.parseInt(val);
+            if (num < 0) {
                 return 0;
             }
-            return val;
+            return num;
         } catch (NumberFormatException e) {
             return defaultValue;
         }
