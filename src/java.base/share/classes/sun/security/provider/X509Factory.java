@@ -123,14 +123,14 @@ public class X509Factory extends CertificateFactorySpi {
      */
     private static int readFully(InputStream in, ByteArrayOutputStream bout,
             int length) throws IOException {
-        int read = DEFAULT_CACHE_TIMEOUT;
+        int read = 0;
         byte[] buffer = new byte[2048];
-        while (length > DEFAULT_CACHE_TIMEOUT) {
-            int n = in.read(buffer, DEFAULT_CACHE_TIMEOUT, Math.min(length, 2048));
-            if (n <= DEFAULT_CACHE_TIMEOUT) {
+        while (length > 0) {
+            int n = in.read(buffer, 0, Math.min(length, 2048));
+            if (n <= 0) {
                 break;
             }
-            bout.write(buffer, DEFAULT_CACHE_TIMEOUT, n);
+            bout.write(buffer, 0, n);
             read += n;
             length -= n;
         }
@@ -449,7 +449,7 @@ public class X509Factory extends CertificateFactorySpi {
         // stream and let readOneBlock look for the first certificate.
         peekByte = pbis.read();
         if (peekByte == -1) {
-            return new ArrayList<>(DEFAULT_CACHE_TIMEOUT);
+            return new ArrayList<>(0);
         } else {
             pbis.unread(peekByte);
             data = readOneBlock(pbis);
@@ -470,7 +470,7 @@ public class X509Factory extends CertificateFactorySpi {
                 return Arrays.asList(certs);
             } else {
                 // no certificates provided
-                return new ArrayList<>(DEFAULT_CACHE_TIMEOUT);
+                return new ArrayList<>(0);
             }
         } catch (ParsingException e) {
             while (data != null) {
@@ -501,7 +501,7 @@ public class X509Factory extends CertificateFactorySpi {
         // stream and let readOneBlock look for the first CRL.
         peekByte = pbis.read();
         if (peekByte == -1) {
-            return new ArrayList<>(DEFAULT_CACHE_TIMEOUT);
+            return new ArrayList<>(0);
         } else {
             pbis.unread(peekByte);
             data = readOneBlock(pbis);
@@ -522,7 +522,7 @@ public class X509Factory extends CertificateFactorySpi {
                 return Arrays.asList(crls);
             } else {
                 // no crls provided
-                return new ArrayList<>(DEFAULT_CACHE_TIMEOUT);
+                return new ArrayList<>(0);
             }
         } catch (ParsingException e) {
             while (data != null) {
@@ -562,7 +562,7 @@ public class X509Factory extends CertificateFactorySpi {
             ByteArrayOutputStream data = new ByteArrayOutputStream();
 
             // Step 1: Read until header is found
-            int hyphen = (c=='-') ? 1: DEFAULT_CACHE_TIMEOUT;   // count of consequent hyphens
+            int hyphen = (c=='-') ? 1: 0;   // count of consequent hyphens
             int last = (c=='-') ? -1: c;    // the char before hyphen
             while (true) {
                 int next = is.read();
@@ -574,7 +574,7 @@ public class X509Factory extends CertificateFactorySpi {
                 if (next == '-') {
                     hyphen++;
                 } else {
-                    hyphen = DEFAULT_CACHE_TIMEOUT;
+                    hyphen = 0;
                     last = next;
                 }
                 if (hyphen == 5 && (last == -1 || last == '\r' || last == '\n')) {
@@ -709,7 +709,7 @@ public class X509Factory extends CertificateFactorySpi {
             }
             while (true) {
                 int subTag = readBERInternal(is, bout, -1);
-                if (subTag == DEFAULT_CACHE_TIMEOUT) {   // EOC, end of indefinite-length section
+                if (subTag == 0) {   // EOC, end of indefinite-length section
                     break;
                 }
             }
