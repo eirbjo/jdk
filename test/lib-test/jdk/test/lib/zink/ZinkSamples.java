@@ -95,7 +95,7 @@ public class ZinkSamples {
             try (ZipFile zf = new ZipFile(zip.toFile())) {
             }
         });
-        assertEquals(ex.getMessage(), "invalid CEN header (bad header size)");
+        assertEquals(ex.getMessage(), "Invalid CEN header (invalid extra data field size for tag: 0x4b50 at 0)");
     }
 
     @Test
@@ -507,7 +507,7 @@ public class ZinkSamples {
 
         Path zip = Zink.stream(smallZip())
                 .flatMap(Zink.toZip64())
-                .map(Desc.map(Desc::toZip64))
+                .map(Desc.map(d -> d.zip64(true)))
                 .collect(Zink.collect()
                         .trace()
                         .toFile(Path.of("8-byte-ext64-desc.zip")));

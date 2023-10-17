@@ -25,6 +25,7 @@ package jdk.test.lib.zink;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Writer;
 import java.nio.channels.WritableByteChannel;
 
 /**
@@ -42,5 +43,13 @@ public record FileData(Writer writer, long size) implements ZRec {
 
     public interface Writer {
         public void write(WritableByteChannel out) throws IOException;
+    }
+
+    public FileData writer(Writer writer) {
+        return new FileData(writer, size);
+    }
+
+    public FileData size(long size) {
+        return new FileData(writer, size);
     }
 }

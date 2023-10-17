@@ -225,6 +225,8 @@ public class ZinkTests {
                             .csize(desc.csize())
                             .size(desc.size())
                             .crc(desc.crc());
+                    case FileData fileData -> fileData.writer(fileData.writer())
+                            .size(fileData.size());
                     case Cen cen -> cen.sig(cen.sig())
                             .version(cen.version())
                             .extractVersion(cen.extractVersion())
@@ -245,7 +247,8 @@ public class ZinkTests {
                             .name(cen.name())
                             .extra(cen.extra())
                             .comment(cen.comment());
-                    case Eoc64Rec rec -> rec.size(rec.size())
+                    case Eoc64Rec rec -> rec.sig(rec.sig())
+                            .size(rec.size())
                             .version(rec.version())
                             .extractVersion(rec.extractVersion())
                             .thisDisk(rec.thisDisk())
@@ -254,15 +257,19 @@ public class ZinkTests {
                             .cenSize(rec.cenSize())
                             .cenOff(rec.cenOff())
                             .extra(rec.extra());
+                    case Eoc64Loc loc -> loc.sig(loc.sig())
+                            .eocDisk(loc.eocDisk())
+                            .eocOff(loc.eocOff())
+                            .totalDisks(loc.totalDisks());
                     case Eoc eoc -> eoc.thisDisk(eoc.thisDisk())
                             .startDisk(eoc.startDisk())
                             .diskEntries(eoc.diskEntries())
                             .totalEntries(eoc.totalEntries())
                             .cenSize(eoc.cenSize())
                             .cenOffset(eoc.cenOffset())
+                            .clen(eoc.clen())
                             .comment(eoc.comment());
-                    default -> r;
-
+                    case Skip skip -> skip.skip(skip.skip());
                 }).collect(Zink.toByteArray());
 
         assertEquals(transformed, zip);

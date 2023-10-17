@@ -97,34 +97,14 @@ public record Loc(int sig,
                 csize,
                 size,
                 nlen,
-                elen, name,
+                elen,
+                name,
                 extra);
 
         if(loc.elen() != elen) {
             throw new IllegalStateException("Unexpected elen");
         }
         return loc;
-    }
-
-    public static Predicate<? super ZRec> remove(Predicate<Loc> predicate) {
-        return filter(predicate.negate());
-    }
-    public static Predicate<? super ZRec> filter(Predicate<Loc> predicate) {
-        return new Predicate<ZRec>() {
-            Loc currentLoc;
-            @Override
-            public boolean test(ZRec zRec) {
-                return switch (zRec) {
-                    case Loc loc -> {
-                        currentLoc = loc;
-                        yield predicate.test(currentLoc);
-                    }
-                    case Desc desc -> predicate.test(currentLoc);
-                    case FileData fileData -> predicate.test(currentLoc);
-                    default -> true;
-                };
-            }
-        };
     }
 
     void write(WritableByteChannel out) throws IOException {
@@ -151,12 +131,40 @@ public record Loc(int sig,
         out.write(buf.flip());
     }
 
+    public static Predicate<? super ZRec> filter(Predicate<Loc> predicate) {
+        return new Predicate<ZRec>() {
+            Loc currentLoc;
+
+            @Override
+            public boolean test(ZRec zRec) {
+                return switch (zRec) {
+                    case Loc loc -> {
+                        currentLoc = loc;
+                        yield predicate.test(currentLoc);
+                    }
+                    case Desc desc -> predicate.test(currentLoc);
+                    case FileData fileData -> predicate.test(currentLoc);
+                    default -> true;
+                };
+            }
+        };
+    }
+
     public static Function<ZRec, ZRec> map(Function<Loc, Loc> mapper) {
+        return map(loc -> true, mapper);
+    }
+
+    public static Function<ZRec, ZRec> map(Predicate<Loc> locPredicate, Function<Loc, Loc> mapper) {
         return r -> switch (r) {
-            case Loc loc -> mapper.apply(loc);
+            case Loc loc when locPredicate.test(loc) -> mapper.apply(loc);
             default -> r;
         };
     }
+
+    public static Predicate<? super ZRec> remove(Predicate<Loc> predicate) {
+        return filter(predicate.negate());
+    }
+
     public static Function<ZRec, ZRec> rename(Function<String, String> renamer) {
         return rename(renamer, StandardCharsets.UTF_8);
     }
@@ -175,16 +183,9 @@ public record Loc(int sig,
     public static Function<ZRec, ZRec> renameLocAndCen(Function<String, String> renamer) {
         return rename(renamer).andThen(Cen.rename(renamer));
     }
-
-    public static Function<ZRec, ZRec> map(Predicate<Loc> locPredicate, Function<Loc, Loc> mapper) {
-        return r -> switch (r) {
-            case Loc loc when locPredicate.test(loc) -> mapper.apply(loc);
-            default -> r;
-        };
-    }
     public static Predicate<Loc> named(String name) {
         byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
-        return l -> l.isNamed(nameBytes);
+        return loc -> Arrays.equals(loc.name, nameBytes);
     }
 
     public boolean isZip64() {
@@ -203,19 +204,6 @@ public record Loc(int sig,
         return getLocalDateTime(localDate(), localTime());
     }
 
-    public Loc crc(long value) {
-        int crc = (int) value & 0XFFFFFFFF;
-        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
-    }
-
-    public Loc size(int size) {
-        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
-    }
-
-    public Loc csize(int csize) {
-        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
-    }
-
     public Loc utf8(boolean useUtf8) {
         int flags = this.flags;
         if (useUtf8) {
@@ -224,16 +212,12 @@ public record Loc(int sig,
             flags &= ~0x800;
         }
         return new Loc(sig, version, (short) flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
-
-    }
-
-    public Loc time(short time) {
-        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     private short sizeOf(ExtField[] extra) {
         return (short) Stream.of(extra).mapToInt(e -> e.dsize() + 4).sum();
     }
+
     public <T extends ExtField> Optional<T> extra(Class<T> type) {
         return Stream.of(extra)
                 .filter(e -> type.isAssignableFrom(e.getClass()))
@@ -257,11 +241,7 @@ public record Loc(int sig,
         return SIZE + name.length + sizeOf(extra);
     }
 
-    public Loc extra(ExtField[] extra) {
-        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, sizeOf(extra), name, extra);
-    }
-
-    public Loc date(short date) {
+    public Loc sig(int sig) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
@@ -277,12 +257,25 @@ public record Loc(int sig,
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc name(byte[] name) {
-        return new Loc(sig, version, flags, method, time, date, crc, csize, size, (short) name.length, elen, Arrays.copyOf(name, name.length), extra);
+    public Loc time(short time) {
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public boolean isNamed(byte[] name) {
-        return Arrays.equals(this.name, name);
+    public Loc date(short date) {
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+    }
+
+    public Loc crc(long value) {
+        int crc = (int) value & 0XFFFFFFFF;
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+    }
+
+    public Loc csize(int csize) {
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+    }
+
+    public Loc size(int size) {
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc nlen(short nlen) {
@@ -293,7 +286,13 @@ public record Loc(int sig,
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc sig(int sig) {
-        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+    public Loc name(byte[] name) {
+        short nlen = (short) name.length;
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name.clone(), extra);
+    }
+
+    public Loc extra(ExtField[] extra) {
+        short elen = sizeOf(extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra.clone());
     }
 }

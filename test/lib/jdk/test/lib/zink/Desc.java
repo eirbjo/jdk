@@ -106,11 +106,11 @@ public record Desc(boolean signed, boolean zip64, int crc, long csize, long size
         return size;
     }
 
-    public Desc csize(long csize) {
+    public Desc signed(boolean signed) {
         return new Desc(signed, zip64, crc, csize, size);
     }
 
-    public Desc size(long size) {
+    public Desc zip64(boolean zip64) {
         return new Desc(signed, zip64, crc, csize, size);
     }
 
@@ -118,15 +118,11 @@ public record Desc(boolean signed, boolean zip64, int crc, long csize, long size
         return new Desc(signed, zip64, crc, csize, size);
     }
 
-    public Desc toZip64() {
-        return new Desc(signed, true, crc, csize, size);
-    }
-
-    public Desc signed(boolean signed) {
+    public Desc csize(long csize) {
         return new Desc(signed, zip64, crc, csize, size);
     }
 
-    public Desc zip64(boolean zip64) {
+    public Desc size(long size) {
         return new Desc(signed, zip64, crc, csize, size);
     }
 }
