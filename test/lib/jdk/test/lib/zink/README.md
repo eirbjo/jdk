@@ -2,28 +2,33 @@
 
 ## Summary
 
-Introduce a test library capable of creating invalid or unusual ZIP files in the
-OpenJDK test suites without leaking ZIP format details into the tests.
+Zink is a type-safe ZIP transformation library, capable of producing ZIP files
+with invalid or unusual shapes, without leaking ZIP format details into tests suites.
 
 ## Motivation
 
 OpenJDK includes a suite of tests aiming to validate implementation classes in
-`java.util.zip` and `jdk.nio.zipfs` packages. To exercise constraint 
-verification code paths in these implementations, tests need to create ZIP files
+`java.util.zip`, `java.util.jar` and `jdk.nio.zipfs` packages. These tests exercise 
+constraint validation code paths and also verifies that ZIP files produced by various external 
+tools can be processed by OpenJDK. To achieve this, tests need to create ZIP files
 which are syntactically or semantically invalid, or otherwise have a shape not easilly 
-reproduced using the standard ZipOutputStream producer facility. Examples include 
-out-of-bounds length or offset field values, invalid UTF byte sequences in names and
-comments, or the use of Zip64 extra fields in small ZIP files. 
+reproduced using the `ZipOutputStream` producer facility.
 
-To produce such test vectors, current tests typically include hard-coded or manually 
+Examples include out-of-bounds length or offset values, invalid UTF byte sequences in names or
+comments, or exotic usage of Zip64 extra fields. 
+
+To produce such test vectors, tests typically include hard-coded or manually 
 calculated offset resolution, magic constant values, direct manipulation of ZIPs in
-byte arrays and manual handling of little-endian byte order of fields.
+byte arrays and manual handling of little-endian byte order of fields. Many tests 
+include inline ZIP file test vectors enoded as byte arrays literals or Base64 strings. 
+Some tests have brittle dependencies on external tools to produce test vectors. 
 
-This makes tests hard to read since the purpose of the test tends to drown in all the 
-ZIP format details required to create the test vectors. Additionally, the binary nature
-of ZIP files does not allow for easy inspection or comparison of test vectors, given 
-the lack of human readability. Some tests must run manually because they consume large
-amounts of CPU, memory and disk resources to produce huge ZIP files.
+This makes tests hard to read, understand and maintain. Their purpose tends
+to drown in all the ZIP format details required to represent, create and manipulate 
+test vectors. Additionally, the binary nature of ZIP files does not allow for easy inspection
+or comparison of test vectors, given the lack of human readability. Some tests currently
+need to run manually because they consume large amounts of CPU, memory and disk resources 
+when producing huge ZIP files.
 
 ## Goals
 
@@ -53,10 +58,6 @@ amounts of CPU, memory and disk resources to produce huge ZIP files.
 
 ## Description
 
-### Records
-The various ZIP file format headers ([Loc](Loc.java), [Cen](Cen.java), [Eoc](Eoc.java), ..) are implemented as a set of Java records
-implementing the [ZRec](ZRec.java) sealed interface.
-
 ### Producing ZIP streams
 The main library is implemented in a single abstract class [Zink](Zink.java). This class provide factories
 for creating ZIP `Stream` instances from byte arrays or files:
@@ -67,12 +68,31 @@ Stream<ZRec> stream = Zink.stream(bytes);               // Produce a stream from
 Stream<ZRec> stream = Zink.stream(Path.of("file.zip")); // Produce a stream from a file
 ```
 
-### Collecting streams
-Similarly, `Zink` contains methods to collect streams into files or byte arrays:
+### Records
+The various ZIP file format headers ([Loc](Loc.java), [Cen](Cen.java), [Eoc](Eoc.java), ..) are implemented as a set of Java records
+implementing the [ZRec](ZRec.java) sealed interface.
+
+Example:
 
 ```java
-byte[] zip = stream.collect(Zink.toByteArray());
-Path fileFile = stream.collect(Zink.toFile("file.zip"));
+/**
+ * Represents the Central Directory Header in the ZIP file format
+ */
+public record Cen(int sig,
+                  short version,
+                  short extractVersion,
+                  short flags,
+                  short method,
+                  short time,
+                  short date,
+                  ...)
+```
+### Collecting streams
+`Zink`  contains methods to collect streams back into into files or byte arrays:
+
+```java
+byte[] zip = stream.collect(Zink.toByteArray());         // Collect to a byte array
+Path fileFile = stream.collect(Zink.toFile("file.zip")); // Collect to a file on disk
 ```
 ### Transforming streams
 
