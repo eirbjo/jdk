@@ -23,7 +23,7 @@ byte arrays and manual handling of little-endian byte order of fields. Many test
 include inline ZIP file test vectors enoded as byte arrays literals or Base64 strings. 
 Some tests have brittle dependencies on external tools to produce test vectors. 
 
-This makes tests hard to read, understand and maintain. Their purpose tends
+This makes tests hard to read, understand and maintain. Their real purpose tends
 to drown in all the ZIP format details required to represent, create and manipulate 
 test vectors. Additionally, the binary nature of ZIP files does not allow for easy inspection
 or comparison of test vectors, given the lack of human readability. Some tests currently
@@ -34,21 +34,19 @@ when producing huge ZIP files.
 
 - Introduce a test library to help create invalid or unusual ZIP test vectors without 
   internal ZIP file format details leaking into the tests.
-- Introduce type-safe, immutable record classes for each of the main headers and records in the ZIP format.
-- Expose ZIP contents as a `java.util.stream.Stream` of such records, allowing
+- Represent each of the headers and records in the ZIP format as type-safe, immutable record classes.
+- Allow parsing ZIP files into a `java.util.stream.Stream` of such records, allowing
   transformations on ZIP files to be expressed using `Stream` operations on immutable records. 
-- Allow ZIP streams to be created from in-memory byte arrays or files.
-- Allow ZIP streams to be collected into in-memory byte arrays or files.
+- Allow ZIP streams to be created from and collected into in-memory byte arrays or files.
 - Allow ZIP streams to be traced in a human-readable, disassembled text format.
 - Allow the production of sparse ZIP files (with 'empty holes' in them) for use by tests requiring multi-GB file sizes 
 - Keep the library surface minimal and the implementation size reasonably small.
-- Library users should not need to consider offset- and size-related field being invalidated
-  by the introduction, deletion of change of records sizes. The library should transparently track 
-  and update such fields as necessary.
+- The library should transparently track and update offset- and size-related fields as necessary
+  when records are introduced, deleted or updated.
 
 ## Non-goals
 
-- It is not a goal to provide a full implementation of the ZIP format, including encryption 
+- It is not a goal to provide a complete implementation of the ZIP format, including encryption 
   support, support for exotic compression methods etc.
 - Performance should be reasonable for test purposes. It is not a goal to create an optimal implementation.
 - It is not a goal to implement parsing of extra fields which are not in use by the OpenJDK
