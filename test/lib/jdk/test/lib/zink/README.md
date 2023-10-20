@@ -1,4 +1,4 @@
-# Zink: A type-safe test library for streaming ZIP transformations
+# Zink: A type-safe test library for producing ZIP test vectors
 
 ## Summary
 
