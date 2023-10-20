@@ -7,8 +7,8 @@ with invalid or unusual shapes, without leaking ZIP format details into tests su
 
 ## TL;DR example
 
-The following code snippet produces a ZIP file where any `Data descriptor` field
-is not proceded by the optional `0x08074b50` signature.
+The following motivational example produces a ZIP file where any `Data Descriptor` field
+is not preceded by the common, but optional `0x08074b50` signature.
 
 
 
