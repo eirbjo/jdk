@@ -5,6 +5,23 @@
 Zink is a type-safe ZIP transformation library, capable of producing ZIP files
 with invalid or unusual shapes, without leaking ZIP format details into tests suites.
 
+## TL;DR example
+
+The following code snippet produces a ZIP file where any `Data descriptor` field
+is not proceded by the optional `0x08074b50` signature.
+
+
+
+```java 
+// Signature-less data descriptors are allowed by specification, but considered exotic
+Path zip = Zink.stream(smallZip())
+        .map(Desc.map(d -> d.signed(false)))
+        .collect(Zink.toFile("signature-less-desc.zip"));
+```
+- The `Zink.stream()` produces a Stream of ZIP records from a byte array or file
+- The next line transforms any `Desc` records into its unsigned variant
+- Finally, the `Stream` is collected ("serialized") into a file on disk
+
 ## Motivation
 
 OpenJDK includes a suite of tests aiming to validate implementation classes in
