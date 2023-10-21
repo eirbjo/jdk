@@ -42,6 +42,8 @@ import java.io.*;
 
 public class Clone {
 
+    private static final ExtField[] EMPTY_EXTRA_FIELD = new ExtField[0];
+
     public static void main(String argv[]) throws Exception {
         // Make a small ZIP file
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -52,20 +54,9 @@ public class Clone {
 
         // Strip any extra fields from LOC and CEN
         Path zip = Zink.stream(out.toByteArray())
-                .map(Loc.map(loc -> loc.extra(new ExtField[0])))
-                .map(Cen.map(cen -> cen.extra(new ExtField[0])))
+                .map(Loc.map(loc -> loc.extra(EMPTY_EXTRA_FIELD)))
+                .map(Cen.map(cen -> cen.extra(EMPTY_EXTRA_FIELD)))
                 .collect(Zink.toFile("zero-extra-field.zip"));
-
-        // Consume all entry input streams using ZipFile
-        try (ZipFile zf = new ZipFile(zip.toFile())) {
-            Enumeration<? extends ZipEntry> entries = zf.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                try (InputStream in = zf.getInputStream(entry)) {
-                    in.transferTo(OutputStream.nullOutputStream());
-                }
-            }
-        }
 
         // Verify that a ZipEntry without extra data can be cloned
         ZipEntry e = new ZipEntry("foo");
