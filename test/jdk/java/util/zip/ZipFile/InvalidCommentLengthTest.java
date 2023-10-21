@@ -46,7 +46,6 @@ import static org.testng.Assert.*;
  * @bug 8280404
  * @summary Validate that Zip/JarFile will throw a ZipException when the CEN
  * comment length field contains an incorrect value
- * @enablePreview true
  * @library /test/lib
  * @run testng InvalidCommentLengthTest
  */

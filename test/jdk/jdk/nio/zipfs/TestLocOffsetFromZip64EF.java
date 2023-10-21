@@ -47,7 +47,6 @@ import java.util.zip.ZipOutputStream;
  * @bug 8255380 8257445
  * @summary Test that Zip FS can access the LOC offset from the Zip64 extra field
  * @library /test/lib
- * @enablePreview
  * @modules jdk.zipfs
  * @run testng TestLocOffsetFromZip64EF
  */

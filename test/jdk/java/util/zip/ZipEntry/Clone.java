@@ -25,7 +25,6 @@
  * @test
  * @bug 4134526
  * @summary Test if ZipEntry.clone() works when the extra field is null.
- * @enablePreview true
  * @library /test/lib
  */
 import jdk.test.lib.zink.Cen;

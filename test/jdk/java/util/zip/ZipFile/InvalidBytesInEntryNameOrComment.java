@@ -42,7 +42,6 @@ import static org.testng.Assert.expectThrows;
  * @test
  * @summary Validate that opening ZIP files files with invalid UTF-8
  * byte sequences in the name or comment fields fails with ZipException
- * @enablePreview true
  * @library /test/lib
  * @run testng InvalidBytesInEntryNameOrComment
  */

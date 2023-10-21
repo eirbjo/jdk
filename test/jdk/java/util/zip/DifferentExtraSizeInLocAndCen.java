@@ -43,7 +43,6 @@ import static org.testng.Assert.assertEquals;
  * event though ZipOutputStream never produces such files. This test verifies that
  * ZipFile will not trust the extra length from the CEN when calculating the
  * offset of the file data.
- * @enablePreview true
  * @library /test/lib
  * @run testng DifferentExtraSizeInLocAndCen
  */

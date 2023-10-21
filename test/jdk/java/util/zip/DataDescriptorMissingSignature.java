@@ -41,7 +41,6 @@ import java.util.zip.ZipOutputStream;
 /* @test
  * @summary Verify that ZipInputStream can read Data Descriptors
  * without the recommended (but optional) signature.
- * @enablePreview true
  * @library /test/lib
  * @run testng DataDescriptorMissingSignature
  */
