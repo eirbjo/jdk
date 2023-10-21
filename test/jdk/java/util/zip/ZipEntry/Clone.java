@@ -56,6 +56,9 @@ public class Clone {
                 .map(Cen.map(cen -> cen.extra(EMPTY_EXTRA_FIELD)))
                 .collect(Zink.toFile("zero-extra-field.zip"));
 
+        // Sanity check that ZipFile can open the file
+        ZipFile zf = new ZipFile(zip.toFile());
+
         // Verify that a ZipEntry without extra data can be cloned
         ZipEntry e = new ZipEntry("foo");
         e.clone();
