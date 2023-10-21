@@ -22,6 +22,10 @@ Path zip = Zink.stream(smallZip())
 - The next line transforms any `Desc` records into its unsigned variant
 - Finally, the `Stream` is collected ("serialized") into a file on disk
 
+Examples rewrites of existing tests can be found by comparing the
+[zink-tests](https://github.com/eirbjo/jdk/compare/master...eirbjo:jdk:zink-tests) 
+branch with master
+
 ## Motivation
 
 OpenJDK includes a suite of tests aiming to validate implementation classes in
