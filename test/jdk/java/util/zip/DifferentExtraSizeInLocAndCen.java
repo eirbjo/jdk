@@ -72,8 +72,8 @@ public class DifferentExtraSizeInLocAndCen {
     }
 
     /**
-     * Verify that ZipInputStream can parse a data descriptor correctly,
-     * also when it does not have the recommended leading signature
+     * Verify that ZipFile can read contents of entries which extra fields differes
+     * between the LOC and CEN records
      */
     @Test
     public void shouldReadZipWithDifferingCenAndLocExtraSizes() throws IOException {
