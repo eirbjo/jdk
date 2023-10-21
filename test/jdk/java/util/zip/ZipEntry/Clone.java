@@ -21,12 +21,11 @@
  * questions.
  */
 
-/**
- * @test
- * @bug 4134526
- * @summary Test if ZipEntry.clone() works when the extra field is null.
- * @library /test/lib
- */
+/* @test
+   @bug 4134526
+   @summary Test if ZipEntry.clone() works when the extra field is null.
+   @library /test/lib
+   */
 import jdk.test.lib.zink.Cen;
 import jdk.test.lib.zink.ExtField;
 import jdk.test.lib.zink.Loc;
