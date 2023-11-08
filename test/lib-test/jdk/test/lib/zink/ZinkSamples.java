@@ -350,10 +350,7 @@ public class ZinkSamples {
                 .map(Loc.map(loc -> loc.csize(-1)))
                 .map(Cen.map(cen -> cen.csize(-1)))
                 .collect(Zink.toFile("negative-ext-size.zip"));
-
-        readZip(zip); // csize not validated
-        readZipFs(zip); // csize not validated
-        readZipInputStream(zip); // csize not validated
+        assertExtraLenSizeValidation(zip);
 
     }
 
@@ -367,11 +364,27 @@ public class ZinkSamples {
                         .trace()
                         .toFile(Path.of("negative-size.zip")));
 
-        readZip(zip);
+        assertExtraLenSizeValidation(zip);
+    }
+
+    private void assertExtraLenSizeValidation(Path zip) throws IOException {
+        {
+            ZipException exception = expectThrows(ZipException.class, () -> {
+                readZip(zip);
+            });
+
+            assertEquals(exception.getMessage(), "Invalid CEN header (invalid zip64 extra len size)");
+        }
+
         if (false) {
             readZipInputStream(zip); // .ZipException: unexpected EOF
         }
-        readZipFs(zip);
+        {
+            ZipException exception = expectThrows(ZipException.class, () -> {
+                readZipFs(zip);
+            });
+            assertEquals(exception.getMessage(), "Invalid CEN header (invalid zip64 extra len size)");
+        }
     }
 
     @Test
