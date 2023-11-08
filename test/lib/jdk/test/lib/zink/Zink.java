@@ -40,6 +40,14 @@ import java.util.stream.StreamSupport;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
+/**
+ * Utility class including factory methods for producing a {@link java.util.Stream}
+ * from a ZIP file and for collecting the stream back into a ZIP file. The stream
+ * elements produced are instances of immutable {@link jdk.test.lib.zink.ZRec} records,
+ * each corresponding to header/records described in the ZIP APPNOTE.TXT specification.
+ * Record in the ZIP file can be filtered and transformed using the usual {@link Stream}
+ * API.
+ */
 public abstract class Zink  implements Closeable
 {
 
