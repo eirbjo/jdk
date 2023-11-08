@@ -52,7 +52,7 @@ public abstract class Zink  implements Closeable
 {
 
     /**
-     * Create a Stream of ZRec records parsed from a ZIP file
+     * Create a Stream of ZRec records parsed from a ZIP file on disk
      * @param path the path to the ZIP file
      * @return a Stream of ZRec records
      * @throws IOException if an I/O error occurs when opening the file
@@ -71,8 +71,8 @@ public abstract class Zink  implements Closeable
     }
 
     /**
-     * Create a Stream of ZRec records parsed from an in-memory byte array
-     * @param zip the byte array containing the ZIP
+     * Create a Stream of ZRec records parsed from a ZIP file in an in-memory byte array
+     * @param zip the byte array containing the ZIP file
      * @return a Stream of ZRec records
      */
     public static Stream<ZRec> stream(byte[] zip) {
@@ -107,7 +107,11 @@ public abstract class Zink  implements Closeable
     }
 
     /**
-     * Returns a collector which writes the ZIP stream to a file
+     * Returns a collector which writes the ZIP stream to a file.
+     * This method is equivalent to calling:
+     * {@snippet lang = java:
+     *    Zink.toFile(Path.of(path));
+     * }
      * @param path the path to the ZIP file to write to
      * @return a collector which writes the ZIP stream to a file
      */
@@ -117,10 +121,6 @@ public abstract class Zink  implements Closeable
 
     /**
      * Returns a collector which writes the ZIP stream to a file
-     * This method is equivalent to calling:
-     * {@snippet lang=java :
-     *   Zink.toFile(Path.of(path));
-     * }
      * @param path the Path to the ZIP file to write to
      * @return a collector which writes the ZIP stream to a file
      */
