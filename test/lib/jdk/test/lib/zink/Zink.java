@@ -99,6 +99,19 @@ public abstract class Zink  implements Closeable
     }
 
     /**
+     * Return a ZRec stream combining the entries of first stream followed by the entries of the second stream
+     * @param first the first stream
+     * @param second the second stream
+     * @return a stream with the entries of the first stream followed by the entries of the second stream
+     */
+    public static Stream<ZRec> concat(Stream<ZRec> first, Stream<ZRec> second) {
+
+        ConcatZpliterator concatZpliterator = new ConcatZpliterator(first, second);
+
+        return StreamSupport.stream(concatZpliterator, false);
+    }
+
+    /**
      * Returns a builder for configuring a collector for a stream of ZIP records
      * @return a configurable collector
      */
@@ -234,19 +247,6 @@ public abstract class Zink  implements Closeable
                 };
             }
         };
-    }
-
-    /**
-     * Return a ZRec stream combining the entries of first stream followed by the entries of the second stream
-     * @param first the first stream
-     * @param second the second stream
-     * @return a stream with the entries of the first stream followed by the entries of the second stream
-     */
-    public static Stream<ZRec> concat(Stream<ZRec> first, Stream<ZRec> second) {
-
-        ConcatZpliterator concatZpliterator = new ConcatZpliterator(first, second);
-
-        return StreamSupport.stream(concatZpliterator, false);
     }
 
     private static class ConcatZpliterator extends Spliterators.AbstractSpliterator<ZRec> implements Consumer<ZRec> {
