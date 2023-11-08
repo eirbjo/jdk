@@ -187,7 +187,23 @@ public abstract class Zink  implements Closeable
          * @return a collector which writes the ZIP stream to a file
          */
         public Collector<ZRec, Zink, Path> toFile(Path path) {
-            return Zink.toFile(path, this);
+            try {
+                return new ZinkCollector<Path>(new StreamZink(this, new FileOutputStream(path.toFile()).getChannel())) {
+                    @Override
+                    public Function<Zink, Path> finisher() {
+                        return (z) -> {
+                            try {
+                                z.close();
+                                return path;
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        };
+                    }
+                };
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         /**
@@ -208,46 +224,24 @@ public abstract class Zink  implements Closeable
          * @return a collector which writes the ZIP stream to a byte array.
          */
         public Collector<ZRec, Zink, byte[]> toByteArray() {
-            return Zink.toByteArray(this);
-        }
-    }
-
-    // Private implemetation members
-    private static Collector<ZRec, Zink, Path> toFile(Path path, ZCollector collector) {
-        try {
-            return new ZinkCollector<Path>(new StreamZink(collector, new FileOutputStream(path.toFile()).getChannel())) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            return new ZinkCollector<byte[]>(new StreamZink(this, Channels.newChannel(out))) {
                 @Override
-                public Function<Zink, Path> finisher() {
+                public Function<Zink, byte[]> finisher() {
                     return (z) -> {
                         try {
                             z.close();
-                            return path;
+                            return out.toByteArray();
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
                     };
                 }
             };
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
-    private static Collector<ZRec, Zink, byte[]> toByteArray(ZCollector collector) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        return new ZinkCollector<byte[]>(new StreamZink(collector, Channels.newChannel(out))) {
-            @Override
-            public Function<Zink, byte[]> finisher() {
-                return (z) -> {
-                    try {
-                        z.close();
-                        return out.toByteArray();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                };
-            }
-        };
-    }
+
+    // Private implementation members
 
     private static class ConcatZpliterator extends Spliterators.AbstractSpliterator<ZRec> implements Consumer<ZRec> {
 
@@ -387,7 +381,6 @@ public abstract class Zink  implements Closeable
 
         private final WritableByteChannel out;
         private final Consumer<ZRec> trace;
-        private long written = 0L;
         private long offset;
 
         private final Function<ZRec, ZRec> offsetFixer;
@@ -396,16 +389,6 @@ public abstract class Zink  implements Closeable
             this.out = out;
             this.offsetFixer = collector.fixOffsets ? new OffsetFixer() : Function.identity();
             this.trace = collector.trace;
-        }
-
-        private int write(byte[] data) throws IOException {
-            return write(ByteBuffer.wrap(data));
-        }
-
-        private int write(ByteBuffer data) throws IOException {
-            //int written = out.write(data);
-            this.written += written;
-            return 0;
         }
 
         @Override
@@ -770,6 +753,11 @@ public abstract class Zink  implements Closeable
         }
     }
 
+    /**
+     * A (stateful) function which tracks sizes of each record added in the stream
+     * and adjusts the values of size- and offset-sensitive fields accordingly. This allows
+     * client code to not worry about updating these fields when transforming the stream.
+     */
     private static class OffsetFixer implements Function<ZRec, ZRec> {
         long offset;
         List<Long> locOffsets = new ArrayList<>();
@@ -832,6 +820,11 @@ public abstract class Zink  implements Closeable
             };
         }
     }
+
+    /**
+     * A consumer of ZRec headers/records which produces a human readable
+     * trace of each record, similar to that produced by zipdetails.
+     */
     private static class Trace implements Consumer<ZRec> {
         private final PrintStream pw;
         private final Charset charset;
