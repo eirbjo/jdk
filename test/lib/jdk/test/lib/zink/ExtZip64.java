@@ -28,17 +28,26 @@ import java.nio.ByteOrder;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-public record ExtZip64(short dsize, long size, long csize, long locOff, int diskStart) implements ExtField {
+import static jdk.test.lib.zink.Zink.u16;
+import static jdk.test.lib.zink.Zink.u32;
+
+public record ExtZip64(int dsize, long size, long csize, long locOff, long diskStart) implements ExtField {
 
     static final int ID = 0x1;
 
-    static ExtField read(short dsize, ByteBuffer buffer) {
+    public ExtZip64 {
+        dsize = u16(dsize);
+        if (diskStart != -1) {
+            diskStart = u32(diskStart);
+        }
+    }
 
-        short rem = dsize;
+    static ExtField read(int dsize, ByteBuffer buffer) {
+        int rem = dsize;
         long size = -1;
         long csize = -1;
         long locOff = -1;
-        int diskStart = -1;
+        long diskStart = -1;
 
         if (rem >= Long.BYTES) {
             size = buffer.getLong();
@@ -53,7 +62,7 @@ public record ExtZip64(short dsize, long size, long csize, long locOff, int disk
             rem -= Long.BYTES;
         }
         if (rem >= Integer.BYTES) {
-            diskStart = buffer.getInt();
+            diskStart = Integer.toUnsignedLong(buffer.getInt());
         }
 
         return new ExtZip64(dsize, size, csize, locOff, diskStart);
@@ -67,7 +76,7 @@ public record ExtZip64(short dsize, long size, long csize, long locOff, int disk
     }
 
     @Override
-    public short id() {
+    public int id() {
         return ID;
     }
 
@@ -86,18 +95,18 @@ public record ExtZip64(short dsize, long size, long csize, long locOff, int disk
             buffer.putLong(this.locOff());
         }
         if(buffer.remaining() >= Integer.BYTES) {
-            buffer.putInt(this.diskStart());
+            buffer.putInt((int) this.diskStart());
         }
         return data;
     }
 
     public static ExtZip64 ofLoc(Loc loc) {
-        short dsize = 8 + 8;
+        int dsize = 8 + 8;
         return new ExtZip64(dsize, loc.size(), loc.csize(), -1, -1);
     }
 
     public static ExtZip64 ofCen(Cen cen) {
-        short dsize = 8 + 8 +8 +4;
+        int dsize = 8 + 8 +8 +4;
         return new ExtZip64(dsize, cen.size(), cen.csize(), cen.locOff(), cen.diskStart());
     }
 

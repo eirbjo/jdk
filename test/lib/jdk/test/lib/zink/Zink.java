@@ -312,12 +312,12 @@ public abstract class Zink  implements Closeable
                 if (b.tryAdvance(this)) {
                     if (rec instanceof Eoc eoc) {
                         bEocFound = true;
-                        Eoc merged = new Eoc(aEoc.thisDisk(),
+                        Eoc merged = new Eoc(Eoc.SIG, aEoc.thisDisk(),
                                 aEoc.startDisk(),
-                                (short) (aEoc.diskEntries() + eoc.diskEntries()),
-                                (short) (aEoc.totalEntries() + eoc.totalEntries()),
+                                aEoc.diskEntries() + eoc.diskEntries(),
+                                aEoc.totalEntries() + eoc.totalEntries(),
                                 aEoc.cenSize() + eoc.cenSize(),
-                                (int) (aEoc.cenOffset() + eoc.cenOffset()),
+                                aEoc.cenOffset() + eoc.cenOffset(),
                                 aEoc.clen(),
                                 aEoc.comment());
                         action.accept(merged);
@@ -554,8 +554,8 @@ public abstract class Zink  implements Closeable
         ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         List<ExtField> fields = new ArrayList<>();
         while (buffer.remaining() > 0) {
-            short id = buffer.getShort();
-            short dsize = buffer.getShort();
+            int id = Short.toUnsignedInt(buffer.getShort());
+            int dsize =Short.toUnsignedInt(buffer.getShort());
 
             if (id == ExtZip64.ID) { // Zip64 sizes
                 fields.add(ExtZip64.read(dsize, buffer));
@@ -650,7 +650,7 @@ public abstract class Zink  implements Closeable
 
                     boolean zip64 = loc.isZip64();
 
-                    int sigOrCrc = getInt();
+                    long sigOrCrc = getInt();
 
                     if (sigOrCrc == Desc.SIG) {
                         yield Desc.read(channel, headerBuffer, sigOrCrc, true, zip64);
@@ -661,10 +661,10 @@ public abstract class Zink  implements Closeable
             };
         }
 
-        private int getInt() throws IOException {
+        private long getInt() throws IOException {
             headerBuffer.clear().limit(Integer.BYTES);
             channel.read(headerBuffer);
-            return headerBuffer.getInt(0);
+            return Integer.toUnsignedLong(headerBuffer.getInt(0));
         }
 
         private boolean isLocOrCenSig(int number) {
@@ -733,22 +733,22 @@ public abstract class Zink  implements Closeable
         }
 
         private ZRec readSig() throws IOException {
-            int sig = getInt();
+            long sig = getInt();
 
-            switch (sig) {
-                case Loc.SIG:
-                    loc = Loc.read(channel, headerBuffer);
-                    state = States.FILE_DATA;
-                    return loc;
-                case Cen.SIG:
-                    return Cen.read(channel, headerBuffer);
-                case Eoc.SIG:
-                    return Eoc.read(channel, headerBuffer);
-                case Eoc64Rec.SIG:
-                    return Eoc64Rec.read(channel, headerBuffer);
-                case Eoc64Loc.SIG:
-                    return Eoc64Loc.read(channel, headerBuffer);
-                default: throw new IllegalArgumentException("Unknown sig: " + Integer.toHexString(sig));
+            if (sig == Loc.SIG) {
+                loc = Loc.read(channel, headerBuffer);
+                state = States.FILE_DATA;
+                return loc;
+            } else if (sig == Cen.SIG) {
+                return Cen.read(channel, headerBuffer);
+            } else if (sig == Eoc.SIG) {
+                return Eoc.read(channel, headerBuffer);
+            } else if (sig == Eoc64Rec.SIG) {
+                return Eoc64Rec.read(channel, headerBuffer);
+            } else if (sig == Eoc64Loc.SIG) {
+                return Eoc64Loc.read(channel, headerBuffer);
+            } else {
+                throw new IllegalArgumentException("Unknown sig: " + Long.toHexString(sig));
             }
         }
     }
@@ -813,8 +813,8 @@ public abstract class Zink  implements Closeable
                     // Adust CEN size and offset
                     yield eoc.cenOffset((int) cenOffset)
                             .cenSize((int) cenSize)
-                            .diskEntries((short) cenIdx)
-                            .totalEntries((short) cenIdx);
+                            .diskEntries( cenIdx)
+                            .totalEntries(cenIdx);
                 }
                 default -> rec;
             };
@@ -850,7 +850,7 @@ public abstract class Zink  implements Closeable
                     row("version", "%d".formatted(loc.version()), Short.BYTES);
                     row("flags", "0x%04x".formatted(loc.flags()), Short.BYTES);
                     row("method", "%d".formatted(loc.method()), Short.BYTES, method(loc.method()));
-                    printTimeAndDate(loc.time(), loc.date(), 6);
+                    printTimeAndDate((short) loc.time(), (short) loc.date(), 6);
                     row("crc", "0x%08x".formatted(loc.crc()), Integer.BYTES);
                     row("csize", "%d".formatted(loc.csize()), Integer.BYTES);
                     row("size", "%d".formatted(loc.size()), Integer.BYTES);
@@ -879,7 +879,7 @@ public abstract class Zink  implements Closeable
                     row("extract version", "%d".formatted(cen.extractVersion()), Short.BYTES);
                     row("flags", "0x%04x".formatted(cen.flags()), Short.BYTES);
                     row("method", "%d".formatted(cen.method()), Short.BYTES, method(cen.method()));
-                    printTimeAndDate(cen.time(), cen.date(), 8);
+                    printTimeAndDate((short) cen.time(), (short) cen.date(), 8);
                     row("crc", "0x%08x".formatted(cen.crc()), Integer.BYTES);
                     row("csize", "%d".formatted(cen.csize()), Integer.BYTES);
                     row("size", "%d".formatted(cen.size()), Integer.BYTES);
@@ -1035,8 +1035,8 @@ public abstract class Zink  implements Closeable
             offset += size;
         }
 
-        private String extType(short id) {
-            return switch (((int)id) & 0xFFFF) {
+        private String extType(int id) {
+            return switch (id) {
                 case 0x0001 -> "Zip64 extended information extra field";
                 case 0x0007 -> "AV Info";
                 case 0x0008 -> "Reserved for extended language encoding data (PFS)";
@@ -1091,7 +1091,7 @@ public abstract class Zink  implements Closeable
             };
         }
 
-        private String method(short method) {
+        private String method(int method) {
             return switch (method) {
                 case 0 -> "Stored (no compression)";
                 case 1 -> "Shrunk";
@@ -1121,5 +1121,19 @@ public abstract class Zink  implements Closeable
                 default -> "Unknown compression method";
             };
         }
+    }
+
+    static long u32(long num) {
+        if ( num < 0 || num > 0xFFFFFFFFL) {
+            throw new IllegalArgumentException("Number out of unsigned int rage [0 - 0xFFFFFFFF]");
+        }
+        return num;
+    }
+
+    static int u16(int num) {
+        if ( num < 0 || num > 0xFFFF) {
+            throw new IllegalArgumentException("Number out of unsigned int rage [0 - 0xFFFFFFFF]");
+        }
+        return num;
     }
 }

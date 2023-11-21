@@ -27,27 +27,41 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.TimeUnit;
 
-public record ExtTs(byte flag, int modtime, int actime, int crtime) implements ExtField {
+import static jdk.test.lib.zink.Zink.u32;
 
-    public static final short ID = 0x5455;
+public record ExtTs(byte flag, long modtime, long actime, long crtime) implements ExtField {
 
-    public static ExtTs read(short dsize, ByteBuffer buffer) {
+    public ExtTs {
+        if (modtime != -1) {
+            modtime = u32(modtime);
+        }
+        if (actime != -1) {
+            actime = u32(actime);
+        }
+        if (crtime != -1) {
+            crtime = u32(crtime);
+        }
+    }
+
+    public static final int ID = 0x5455;
+
+    public static ExtTs read(int dsize, ByteBuffer buffer) {
         int rem = dsize;
         byte flag = buffer.get();
         rem -=1;
-        int modtime = -1;
-        int actime = -1;
-        int crtime = -1;
+        long modtime = -1;
+        long actime = -1;
+        long crtime = -1;
         if(rem >= 4) {
-            modtime = buffer.getInt();
+            modtime = Integer.toUnsignedLong(buffer.getInt());
             rem -= Integer.BYTES;
         }
         if(rem >= 4) {
-            actime = buffer.getInt();
+            actime = Integer.toUnsignedLong(buffer.getInt());
             rem -= Integer.BYTES;
         }
         if(rem >= 4) {
-            crtime = buffer.getInt();
+            crtime = Integer.toUnsignedLong(buffer.getInt());
             rem -= Integer.BYTES;
         }
         return new ExtTs(flag, modtime, actime, crtime);
@@ -57,19 +71,19 @@ public record ExtTs(byte flag, int modtime, int actime, int crtime) implements E
         return new ExtTs((byte) 0, -1, -1 , -1);
     }
     public ExtTs lastModified(long time, TimeUnit unit) {
-        return new ExtTs((byte) (flag | 0x1), (int) unit.toSeconds(time), actime, crtime);
+        return new ExtTs((byte) (flag | 0x1), unit.toSeconds(time), actime, crtime);
     }
 
     public ExtTs lastAccessed(long time, TimeUnit unit) {
-        return new ExtTs((byte) (flag | 0x2), modtime, (int) unit.toSeconds(time), crtime);
+        return new ExtTs((byte) (flag | 0x2), modtime, unit.toSeconds(time), crtime);
     }
 
     public ExtTs created(long time, TimeUnit unit) {
-        return new ExtTs((byte) (flag | 0x4), modtime, actime, (int) unit.toSeconds(time));
+        return new ExtTs((byte) (flag | 0x4), modtime, actime, unit.toSeconds(time));
     }
 
     @Override
-    public short id() {
+    public int id() {
         return ID;
     }
 
@@ -78,21 +92,21 @@ public record ExtTs(byte flag, int modtime, int actime, int crtime) implements E
         ByteBuffer buffer = ByteBuffer.allocate(dsize()).order(ByteOrder.LITTLE_ENDIAN);
         buffer.put(flag);
         if(modtime != -1) {
-            buffer.putInt(modtime);
+            buffer.putInt((int) modtime);
         }
         if(actime != -1) {
-            buffer.putInt(actime);
+            buffer.putInt((int) actime);
         }
         if(crtime != -1) {
-            buffer.putInt(crtime);
+            buffer.putInt((int) crtime);
         }
 
         return buffer.array();
     }
 
     @Override
-    public short dsize() {
-        short size = 1;
+    public int dsize() {
+        int size = 1;
         if(modtime != -1) {
             size += Integer.BYTES;
         }

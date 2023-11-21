@@ -30,30 +30,38 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
 
+import static jdk.test.lib.zink.Zink.u32;
+
 /**
  * Represents the Zip64 End of Central Directory locator in the ZIP file format
  */
-public record Eoc64Loc(int sig, int eocDisk, long eocOff, int totalDisks) implements ZRec {
-    static final int SIG = 0x07064b50;
+public record Eoc64Loc(long sig, long eocDisk, long eocOff, long totalDisks) implements ZRec {
+    static final long SIG = 0x07064b50L;
     private static final int SIZE = 20;
+    public Eoc64Loc {
+        sig = u32(sig);
+        eocDisk = u32(eocDisk);
+        totalDisks = u32(totalDisks);
+
+    }
 
     static ZRec read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
         channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
         buf.flip();
 
-        int eocDisk = buf.getInt();
+        long eocDisk = Integer.toUnsignedLong(buf.getInt());
         long cenOff = buf.getLong();
-        int totalDisks = buf.getInt();
+        long totalDisks = Integer.toUnsignedLong(buf.getInt());
 
         return new Eoc64Loc(SIG, eocDisk, cenOff, totalDisks);
     }
 
     void write(WritableByteChannel out) throws IOException {
         ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
-        buf.putInt(sig);
-        buf.putInt(eocDisk);
+        buf.putInt((int) sig);
+        buf.putInt((int) eocDisk);
         buf.putLong(eocOff);
-        buf.putInt(totalDisks);
+        buf.putInt((int) totalDisks);
 
         out.write(buf.flip());
     }
@@ -74,11 +82,11 @@ public record Eoc64Loc(int sig, int eocDisk, long eocOff, int totalDisks) implem
         return SIZE;
     }
 
-    public Eoc64Loc sig(int sig) {
+    public Eoc64Loc sig(long sig) {
         return new Eoc64Loc(sig, eocDisk, eocOff, totalDisks);
     }
 
-    public Eoc64Loc eocDisk(int eocDisk) {
+    public Eoc64Loc eocDisk(long eocDisk) {
         return new Eoc64Loc(sig, eocDisk, eocOff, totalDisks);
     }
 
@@ -86,7 +94,7 @@ public record Eoc64Loc(int sig, int eocDisk, long eocOff, int totalDisks) implem
         return new Eoc64Loc(sig, eocDisk, eocOff, totalDisks);
     }
 
-    public Eoc64Loc totalDisks(int totalDisks) {
+    public Eoc64Loc totalDisks(long totalDisks) {
         return new Eoc64Loc(sig, eocDisk, eocOff, totalDisks);
     }
 }

@@ -33,18 +33,24 @@ import java.util.function.Function;
 /**
  * Represents the Data Decriptor record in the ZIP file format
  */
-public record Desc(boolean signed, boolean zip64, int crc, long csize, long size) implements ZRec {
+public record Desc(boolean signed, boolean zip64, long crc, long csize, long size) implements ZRec {
 
     public static final int SIZE = 4 * 3;
     static final int SIG = 0x8074b50;
 
-    static Desc read(ReadableByteChannel channel, ByteBuffer buf, int crcOrSig, boolean signed, boolean zip64) throws IOException {
+    public Desc {
+        crc = Zink.u32(crc);
+        csize = Zink.u32(csize);
+        size = Zink.u32(size);
+    }
+
+    static Desc read(ReadableByteChannel channel, ByteBuffer buf, long crcOrSig, boolean signed, boolean zip64) throws IOException {
         channel.read(buf.limit(sizeOf(signed, zip64) - Integer.BYTES).rewind());
         buf.flip();
 
-        int crc;
+        long crc;
         if (signed) {
-            crc = buf.getInt();
+            crc = Integer.toUnsignedLong(buf.getInt());
         } else {
             crc = crcOrSig;
         }
@@ -54,8 +60,8 @@ public record Desc(boolean signed, boolean zip64, int crc, long csize, long size
             csize = buf.getLong();
             size = buf.getLong();
         } else {
-            csize = buf.getInt();
-            size = buf.getInt();
+            csize = Integer.toUnsignedLong(buf.getInt());
+            size = Integer.toUnsignedLong(buf.getInt());
         }
         return new Desc(signed, zip64, crc, csize, size);
     }
@@ -66,7 +72,7 @@ public record Desc(boolean signed, boolean zip64, int crc, long csize, long size
         if(signed) {
             buf.putInt(SIG);
         }
-        buf.putInt(crc);
+        buf.putInt((int) crc);
         if (zip64) {
             buf.putLong(csize);
             buf.putLong(size);
@@ -114,7 +120,7 @@ public record Desc(boolean signed, boolean zip64, int crc, long csize, long size
         return new Desc(signed, zip64, crc, csize, size);
     }
 
-    public Desc crc(int crc) {
+    public Desc crc(long crc) {
         return new Desc(signed, zip64, crc, csize, size);
     }
 

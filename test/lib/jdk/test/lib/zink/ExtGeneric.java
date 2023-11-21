@@ -23,6 +23,11 @@
 
 package jdk.test.lib.zink;
 
-public record ExtGeneric(short id, short dsize, byte[] data) implements ExtField {
+import static jdk.test.lib.zink.Zink.u16;
 
+public record ExtGeneric(int id, int dsize, byte[] data) implements ExtField {
+    public ExtGeneric {
+        id = u16(id);
+        dsize = u16(dsize);
+    }
 }

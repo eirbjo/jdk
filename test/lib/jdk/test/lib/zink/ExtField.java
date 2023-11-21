@@ -33,7 +33,7 @@ public sealed interface ExtField permits ExtZip64, ExtTs, ExtWinNT, ExtGeneric {
         return fields;
     }
 
-    short id();
-    short dsize();
+    int id();
+    int dsize();
     byte[] data();
 }

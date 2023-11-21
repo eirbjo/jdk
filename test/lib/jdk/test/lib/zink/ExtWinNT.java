@@ -27,11 +27,16 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.TimeUnit;
 
-public record ExtWinNT(int reserved, long mtime, long atime, long ctime) implements ExtField {
+import static jdk.test.lib.zink.Zink.u32;
 
-    public static final short ID = 0x000a;
-    public static final short TIMETAG = 0x1;
-    public static final short TIMETAG_SIZE = 24;
+public record ExtWinNT(long reserved, long mtime, long atime, long ctime) implements ExtField {
+
+    public ExtWinNT {
+        reserved = u32(reserved);
+    }
+    public static final int ID = 0x000a;
+    public static final int TIMETAG = 0x1;
+    public static final int TIMETAG_SIZE = 24;
 
     private static final long WINDOWS_EPOCH_IN_MICROSECONDS = -11644473600000000L;
 
@@ -43,8 +48,8 @@ public record ExtWinNT(int reserved, long mtime, long atime, long ctime) impleme
         long ctime = -1;
 
         while (buffer.remaining() > 0) {
-            short tag = buffer.getShort();
-            short size = buffer.getShort();
+            int tag = Short.toUnsignedInt(buffer.getShort());
+            int size = Short.toUnsignedInt(buffer.getShort());
             if(tag == TIMETAG) {
                 mtime = buffer.getLong();
                 atime = buffer.getLong();
@@ -79,15 +84,15 @@ public record ExtWinNT(int reserved, long mtime, long atime, long ctime) impleme
     }
 
     @Override
-    public short id() {
+    public int id() {
         return ID;
     }
     @Override
     public byte[] data() {
         ByteBuffer buffer = ByteBuffer.allocate(dsize()).order(ByteOrder.LITTLE_ENDIAN);
-        buffer.putInt(reserved);
-        buffer.putShort(TIMETAG);
-        buffer.putShort(TIMETAG_SIZE);
+        buffer.putInt((int) reserved);
+        buffer.putShort((short) TIMETAG);
+        buffer.putShort((short) TIMETAG_SIZE);
         buffer.putLong(mtime);
         buffer.putLong(atime);
         buffer.putLong(ctime);
@@ -96,7 +101,7 @@ public record ExtWinNT(int reserved, long mtime, long atime, long ctime) impleme
     }
 
     @Override
-    public short dsize() {
+    public int dsize() {
         return  Integer.BYTES // reserved
                 + Short.BYTES // TIMETAG
                 + Short.BYTES // TIMETAG_SIZE

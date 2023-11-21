@@ -28,6 +28,7 @@ import org.testng.annotations.Test;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -47,7 +48,7 @@ import static org.testng.Assert.expectThrows;
  */
 public class ZinkSamples {
 
-    public static final int MAX_CEN_SIZE = Integer.MAX_VALUE -22 -1;
+    public static final long MAX_CEN_SIZE = Integer.MAX_VALUE -22 -1;
 
     private static final byte[] INVALID_UTF8_BYTES = {(byte) 0xF0, (byte) 0xA4, (byte) 0xAD};
 
@@ -159,7 +160,7 @@ public class ZinkSamples {
 
         // Replace the LOC sig with an invalid one
         Path zip = Zink.stream(twoEntryZip())
-                .map(Loc.map(Loc.named("entry1"), loc -> loc.sig(0xCAFEBABE)))
+                .map(Loc.map(Loc.named("entry1"), loc -> loc.sig(0xCAFEBABEL)))
                 .collect(Zink.toFile("invalid-loc-sig.zip"));
 
         // Check ZipFile
@@ -182,7 +183,7 @@ public class ZinkSamples {
 
         // Replace the CEN sig with an invalid one
         Path zip = Zink.stream(twoEntryZip())
-                .map(Cen.map(Cen.named("entry1"), cen -> cen.sig(0xCAFEBABE)))
+                .map(Cen.map(Cen.named("entry1"), cen -> cen.sig(0xCAFEBABEL)))
                 .collect(Zink.toFile("invalid-cen-sig.zip"));
 
         // Check ZipFile
@@ -220,16 +221,16 @@ public class ZinkSamples {
         var template = smallZip();
 
         // CEN size of the template ZIP
-        int cenSize = Zink.stream(template)
+        long cenSize = Zink.stream(template)
                 .flatMap(Eoc.match())
                 .findFirst().orElseThrow()
                 .cenSize();
 
         // CEN size of the target ZIP, just exceeding the max limit
-        int adjustedCenSize = MAX_CEN_SIZE + 1;
+        long adjustedCenSize = MAX_CEN_SIZE + 1;
 
         // To fake a big CEN, we zero-pad it with this many bytes
-        int padding = adjustedCenSize - cenSize;
+        long padding = adjustedCenSize - cenSize;
 
         // Inject padding before the Eoc and modify the Eoc CEN size
         Path zip = Zink.stream(template)
@@ -303,6 +304,29 @@ public class ZinkSamples {
     }
 
     @Test
+    public void makeHugeExtra() throws IOException {
+
+
+        Path zip = Path.of("huge-extra.zip");
+        try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(zip))) {
+            for(int i = 0; i < 3; i++) {
+                ZipEntry entry = new ZipEntry("entry" + i);
+                entry.setComment("A comment");
+                byte[] extra = new byte[65535];
+                int size = extra.length - 4;
+                extra[0] = 123;
+                extra[1] = 0;
+                extra[2] = (byte) ((size >> 0) & 0xff);
+                extra[3] = (byte) ((size >> 8) & 0xff);
+                entry.setExtra(extra);
+                out.putNextEntry(entry);
+                out.write("hello".getBytes(StandardCharsets.UTF_8));
+            }
+        }
+    }
+
+
+    @Test
     public void shouldRejectInvalidComment() throws IOException {
         // Template for the transformation
         var template = smallZip();
@@ -343,30 +367,6 @@ public class ZinkSamples {
         readZip(zip64);
     }
 
-    @Test
-    public void shouldRejectNegativeCsize() throws IOException {
-
-        Path zip = Zink.stream(smallZip())
-                .map(Loc.map(loc -> loc.csize(-1)))
-                .map(Cen.map(cen -> cen.csize(-1)))
-                .collect(Zink.toFile("negative-ext-size.zip"));
-        assertExtraLenSizeValidation(zip);
-
-    }
-
-    @Test
-    public void shouldRejectNegativeSizeUncompressed() throws IOException {
-
-        Path zip = Zink.stream(smallUncompressedZip())
-                .map(Loc.map(loc -> loc.size(-1)))
-                .map(Cen.map( cen -> cen.size(-1)))
-                .collect(Zink.collect()
-                        .trace()
-                        .toFile(Path.of("negative-size.zip")));
-
-        assertExtraLenSizeValidation(zip);
-    }
-
     private void assertExtraLenSizeValidation(Path zip) throws IOException {
         {
             ZipException exception = expectThrows(ZipException.class, () -> {
@@ -385,48 +385,6 @@ public class ZinkSamples {
             });
             assertEquals(exception.getMessage(), "Invalid CEN header (invalid zip64 extra len size)");
         }
-    }
-
-    @Test
-    public void shouldRejectNegativeCSizeUncompressed() throws IOException {
-
-        Path zip = Zink.stream(smallUncompressedZip())
-                .map(Loc.map(loc -> loc.csize(-1)))
-                .map(Cen.map( cen -> cen.csize(-1)))
-                .collect(Zink.collect()
-                        .trace()
-                        .toFile(Path.of("negative-size.zip")));
-
-        if (false) {
-            readZip(zip); // Reads rest of file
-        }
-        if (false) {
-            readZipFs(zip); // Reads rest of file
-        }
-
-        readZipInputStream(zip);  // Uses size, not csize
-
-    }
-
-    @Test
-    public void shouldRejectNegativeLocOff() throws IOException {
-
-        Path zip = Zink.stream(smallZip())
-                .map(Cen.map(cen -> cen.locOff(-2)))
-                .collect(Zink.collect()
-                        .disableOffsetFixing()
-                        .toFile(Path.of("negative-loc-offset.zip")));
-
-        expectThrows(EOFException.class, () -> {
-            readZip(zip); // EOFException, should validate?
-        });
-
-        expectThrows(ZipException.class, () -> {
-            readZipFs(zip); // invalid loc 4294967294 for entry reading
-        });
-
-        readZipInputStream(zip); // Reads Loc, not Cen
-
     }
 
     @Test

@@ -42,44 +42,57 @@ import static jdk.test.lib.zink.Zink.*;
 /**
  * Represents the Local File Header in the ZIP file format
  */
-public record Loc(int sig,
-                  short version,
-                  short flags,
-                  short method,
-                  short time,
-                  short date,
-                  int crc,
-                  int csize,
-                  int size,
-                  short nlen,
-                  short elen,
+public record Loc(long sig,
+                  int version,
+                  int flags,
+                  int method,
+                  int time,
+                  int date,
+                  long crc,
+                  long csize,
+                  long size,
+                  int nlen,
+                  int elen,
                   byte[] name,
                   ExtField[] extra) implements ZRec {
-    public static final int SIG = 0x04034b50;   // "PK\003\004";
-    private static final short VER_45 = 45;
-    private static final short VER_20 = 20;
-    private static final short VER_10 = 10;
+    public Loc {
+        sig = u32(sig);
+        version = u16(version);
+        flags = u16(flags);
+        method = u16(method);
+        time = u16(time);
+        date = u16(date);
+        crc = u32(crc);
+        csize = u32(csize);
+        size = u32(size);
+        nlen = u16(nlen);
+        elen = u16(elen);
+    }
+    public static final long SIG = 0x04034b50L;   // "PK\003\004";
+    private static final int VER_45 = 45;
+    private static final int VER_20 = 20;
+    private static final int VER_10 = 10;
 
-    private static final short STORED = 0;
-    static final short DEFLATE = 8;
+    private static final int STORED = 0;
+    static final int DEFLATE = 8;
     public static final byte[] EMPTY_BYTES = new byte[0];
-    private static final int ZIP64_SIZE = 0xFFFFFFFF;
+    private static final long ZIP64_SIZE = 0xFFFFFFFFL;
     private static final int SIZE = 30;
 
     static Loc read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
         channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
         buf.flip();
 
-        short version = buf.getShort();
-        short flags = buf.getShort();
-        short method = buf.getShort();
-        short time = buf.getShort();
-        short date = buf.getShort();
-        int crc = buf.getInt();
-        int csize = buf.getInt();
-        int size = buf.getInt();
-        short nlen = buf.getShort();
-        short elen = buf.getShort();
+        int version = Short.toUnsignedInt(buf.getShort());
+        int flags = Short.toUnsignedInt(buf.getShort());
+        int method = Short.toUnsignedInt(buf.getShort());
+        int time = Short.toUnsignedInt(buf.getShort());
+        int date = Short.toUnsignedInt(buf.getShort());
+        long crc = Integer.toUnsignedLong(buf.getInt());
+        long csize = Integer.toUnsignedLong(buf.getInt());
+        long size = Integer.toUnsignedLong(buf.getInt());
+        int nlen = Short.toUnsignedInt(buf.getShort());
+        int elen = Short.toUnsignedInt(buf.getShort());
 
         byte[] name = getBytes(channel, nlen);
         byte[] extraBytes = getBytes(channel, elen);
@@ -109,23 +122,23 @@ public record Loc(int sig,
 
     void write(WritableByteChannel out) throws IOException {
         ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
-        buf.putInt(sig);
-        buf.putShort(version);
-        buf.putShort(flags);
-        buf.putShort(method);
-        buf.putShort(time);
-        buf.putShort(date);
-        buf.putInt(crc);
-        buf.putInt(csize);
-        buf.putInt(size);
-        buf.putShort(nlen);
-        buf.putShort(elen);
+        buf.putInt((int) sig);
+        buf.putShort((short) version);
+        buf.putShort((short) flags);
+        buf.putShort((short) method);
+        buf.putShort((short) time);
+        buf.putShort((short) date);
+        buf.putInt((int) crc);
+        buf.putInt((int) csize);
+        buf.putInt((int) size);
+        buf.putShort((short) nlen);
+        buf.putShort((short) elen);
         buf.put(name);
 
         for (ExtField e : extra) {
             byte[] data = e.data();
-            buf.putShort(e.id());
-            buf.putShort(e.dsize());
+            buf.putShort((short) e.id());
+            buf.putShort((short) e.dsize());
             buf.put(data);
         }
         out.write(buf.flip());
@@ -189,15 +202,15 @@ public record Loc(int sig,
     }
 
     public boolean isZip64() {
-        return size == -1;
+        return size == 0xFFFFFFFFL;
     }
 
     public LocalDate localDate() {
-        return getLocalDate(date);
+        return getLocalDate((short) date);
     }
 
     public LocalTime localTime() {
-        return getLocalTime(time);
+        return getLocalTime((short) time);
     }
 
     public LocalDateTime localDateTime() {
@@ -211,11 +224,11 @@ public record Loc(int sig,
         } else {
             flags &= ~0x800;
         }
-        return new Loc(sig, version, (short) flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
+        return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    private short sizeOf(ExtField[] extra) {
-        return (short) Stream.of(extra).mapToInt(e -> e.dsize() + 4).sum();
+    private int sizeOf(ExtField[] extra) {
+        return Stream.of(extra).mapToInt(e -> e.dsize() + 4).sum();
     }
 
     public <T extends ExtField> Optional<T> extra(Class<T> type) {
@@ -241,58 +254,57 @@ public record Loc(int sig,
         return SIZE + name.length + sizeOf(extra);
     }
 
-    public Loc sig(int sig) {
+    public Loc sig(long sig) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc version(short version) {
+    public Loc version(int version) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc flags(short flags) {
+    public Loc flags(int flags) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc method(short method) {
+    public Loc method(int method) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc time(short time) {
+    public Loc time(int time) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc date(short date) {
+    public Loc date(int date) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc crc(long value) {
-        int crc = (int) value & 0XFFFFFFFF;
+    public Loc crc(long crc) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc csize(int csize) {
+    public Loc csize(long csize) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc size(int size) {
+    public Loc size(long size) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc nlen(short nlen) {
+    public Loc nlen(int nlen) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
-    public Loc elen(short elen) {
+    public Loc elen(int elen) {
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra);
     }
 
     public Loc name(byte[] name) {
-        short nlen = (short) name.length;
+        int nlen = name.length;
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name.clone(), extra);
     }
 
     public Loc extra(ExtField[] extra) {
-        short elen = sizeOf(extra);
+        int elen = sizeOf(extra);
         return new Loc(sig, version, flags, method, time, date, crc, csize, size, nlen, elen, name, extra.clone());
     }
 }

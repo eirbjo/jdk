@@ -339,11 +339,11 @@ public class ZinkTests {
                                 locOffets.add(currentOffset);
 
                                 // Version 45 is required for Zip64
-                                assertEquals(loc.version(), (short) 45);
+                                assertEquals(loc.version(), 45);
 
                                 // Sizes should have 32-bit magic values
-                                assertEquals(loc.size(), 0XFFFFFFFF);
-                                assertEquals(loc.csize(), 0XFFFFFFFF);
+                                assertEquals(loc.size(), 0XFFFFFFFFL);
+                                assertEquals(loc.csize(), 0XFFFFFFFFL);
 
                                 // ExtZip64 should have been added
                                 ExtZip64 extZip64 = Stream.of(loc.extra()).flatMap(ExtZip64.select())
@@ -368,12 +368,12 @@ public class ZinkTests {
                                 assertEquals(cen.extractVersion(), (short) 45);
 
                                 // Sizes and offset should have 32-bit magic values
-                                assertEquals(cen.size(), 0XFFFFFFFF);
-                                assertEquals(cen.csize(), 0XFFFFFFFF);
-                                assertEquals(cen.locOff(), 0XFFFFFFFF);
+                                assertEquals(cen.size(), 0XFFFFFFFFL);
+                                assertEquals(cen.csize(), 0XFFFFFFFFL);
+                                assertEquals(cen.locOff(), 0XFFFFFFFFL);
 
                                 // dStart should be 16-bit magic value
-                                assertEquals(cen.diskStart(), (short) 0XFFFF);
+                                assertEquals(cen.diskStart(), 0XFFFF);
 
                                 // ExtZip64 should have been added
                                 ExtZip64 extZip64 = Stream.of(cen.extra()).flatMap(ExtZip64.select())
@@ -411,12 +411,12 @@ public class ZinkTests {
                             }
                             case Eoc eoc -> {
                                 // All fields should have Zip64 magic values
-                                assertEquals(eoc.thisDisk(), (short) 0XFFFF);
-                                assertEquals(eoc.startDisk(), (short) 0XFFFF);
-                                assertEquals(eoc.diskEntries(), (short) 0XFFFF);
-                                assertEquals(eoc.totalEntries(), (short) 0XFFFF);
-                                assertEquals(eoc.cenSize(), 0XFFFFFFFF);
-                                assertEquals(eoc.cenOffset(), 0XFFFFFFFF);
+                                assertEquals(eoc.thisDisk(), 0XFFFF);
+                                assertEquals(eoc.startDisk(), 0XFFFF);
+                                assertEquals(eoc.diskEntries(), 0XFFFF);
+                                assertEquals(eoc.totalEntries(), 0XFFFF);
+                                assertEquals(eoc.cenSize(), 0XFFFFFFFFL);
+                                assertEquals(eoc.cenOffset(), 0XFFFFFFFFL);
                                 yield true;
                             }
                             default -> true;
@@ -611,7 +611,7 @@ public class ZinkTests {
 
         // Local file header
         {
-            checkLoc(recs.get(3), 0,  0x800, uncompressedEntryName, (int) getCrc(uncompressedEntryContent),
+            checkLoc(recs.get(3), 0,  0x800, uncompressedEntryName, getCrc(uncompressedEntryContent),
                     uncompressedEntryContent.length, uncompressedEntryContent.length);
 
         }
@@ -628,10 +628,10 @@ public class ZinkTests {
         // (No data descriptor for uncompressed file)
 
         // Central directory file header
-        checkCen((Cen) recs.get(5), entryName, entryComment, deflated.length, entryContent.length, 0x8 | 0x800, 20, 20, 8, (int) getCrc(entryContent), 0);
+        checkCen((Cen) recs.get(5), entryName, entryComment, deflated.length, entryContent.length, 0x8 | 0x800, 20, 20, 8, getCrc(entryContent), 0);
 
         // Central directory file header
-        checkCen((Cen) recs.get(6), uncompressedEntryName, new byte[0], uncompressedEntryContent.length, uncompressedEntryContent.length, 0x800, 10, 10, 0, (int) getCrc(uncompressedEntryContent), 67);
+        checkCen((Cen) recs.get(6), uncompressedEntryName, new byte[0], uncompressedEntryContent.length, uncompressedEntryContent.length, 0x800, 10, 10, 0, getCrc(uncompressedEntryContent), 67);
 
         // Check End of central directory
         checkEoc(recs.get(7), 2, cenOff, cenSize);
@@ -649,7 +649,7 @@ public class ZinkTests {
         assertEquals(eoc.comment(), new byte[0]);
     }
 
-    private void checkCen(ZRec rec, byte[] name, byte[] comment, int csize, int size, int flags, int version, int extractVersion, int method, int crc, int locOff) {
+    private void checkCen(ZRec rec, byte[] name, byte[] comment, int csize, int size, int flags, int version, int extractVersion, int method, long crc, int locOff) {
         Cen cen = (Cen) rec;
         assertEquals(cen.version() >> 8, 0); // Java
         assertEquals(cen.version() & 0XFF, version); // 30 = version 3.0
@@ -688,7 +688,7 @@ public class ZinkTests {
         return result;
     }
 
-    private void checkLoc(ZRec zRec, int method, int flags, byte[] entryName, int crc, int csize, int size) {
+    private void checkLoc(ZRec zRec, int method, int flags, byte[] entryName, long crc, int csize, int size) {
         Loc loc = (Loc) zRec;
         assertEquals(loc.version(), method == 8 ? 20 : 10);
         assertEquals(loc.flags(), flags);
@@ -730,7 +730,7 @@ public class ZinkTests {
         String contentText = "HELLO\n";
         byte[] filename = filenameText.getBytes(StandardCharsets.UTF_8);
         byte[] content = contentText.getBytes(StandardCharsets.UTF_8);
-        int crc = (int) getCrc(content);
+        long crc = getCrc(content);
         LocalDate date = LocalDate.of(2023, 2, 4);
         LocalTime time = LocalTime.of(21, 1, 16);
 
@@ -753,8 +753,8 @@ public class ZinkTests {
 
             assertEquals(loc.crc(), crc);
 
-            assertEquals(loc.csize(), -1);
-            assertEquals(loc.size(), -1);
+            assertEquals(loc.csize(), 0xFFFFFFFFL);
+            assertEquals(loc.size(), 0xFFFFFFFFL);
 
             assertEquals(loc.nlen(), filename.length);
             assertEquals(loc.elen(), 20);
@@ -826,6 +826,32 @@ public class ZinkTests {
             checkEoc(recs.get(5), 1, 57, 47);
         }
 
+    }
+
+    @Test
+    public void shouldParseBigName() throws IOException {
+        String name = "n".repeat(Short.MAX_VALUE +1);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zo = new ZipOutputStream(out)) {
+            zo.putNextEntry(new ZipEntry(name));
+            zo.write("Hello".getBytes(StandardCharsets.UTF_8));
+        }
+        Files.write(Path.of("bign-orig.zip"), out.toByteArray());
+
+        byte[] collected = Zink.stream(out.toByteArray())
+                .map(Loc.map(loc -> {
+                    assertEquals(loc.nlen(), name.length());
+                    return loc;
+                }))
+                .map(Cen.map(cen -> {
+                    assertEquals(cen.nlen(), name.length());
+                    return cen;
+                }))
+                .collect(Zink.collect().trace().toByteArray());
+
+        Files.write(Path.of("bign-collected.zip"), collected);
+        assertEquals(out.toByteArray(), collected);
     }
 
     private long getCrc(byte[] content) {

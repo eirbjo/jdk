@@ -97,13 +97,13 @@ Example:
 /**
  * Represents the Central Directory Header in the ZIP file format
  */
-public record Cen(int sig,
-                  short version,
-                  short extractVersion,
-                  short flags,
-                  short method,
-                  short time,
-                  short date,
+public record Cen(long sig,
+                  int version,
+                  int extractVersion,
+                  int flags,
+                  int method,
+                  int time,
+                  int date,
                   ...)
 ```
 ### Collecting streams

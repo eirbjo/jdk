@@ -31,49 +31,60 @@ import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static jdk.test.lib.zink.Zink.getBytes;
+import static jdk.test.lib.zink.Zink.*;
 
 /**
  * Represents the End of Central Directory record in the ZIP file format
  */
-public record Eoc(short thisDisk,
-                  short startDisk,
-                  short diskEntries,
-                  short totalEntries,
-                  int cenSize,
-                  int cenOffset,
-                  short clen,
+public record Eoc(long sig,
+                  int thisDisk,
+                  int startDisk,
+                  int diskEntries,
+                  int totalEntries,
+                  long cenSize,
+                  long cenOffset,
+                  int clen,
                   byte[] comment) implements ZRec {
-    static final int SIG = 0x06054b50;
+    public Eoc {
+        sig = u32(sig);
+        thisDisk = u16(thisDisk);
+        startDisk = u16(startDisk);
+        diskEntries = u16(diskEntries);
+        totalEntries = u16(totalEntries);
+        cenSize = u32(cenSize);
+        cenOffset = u32(cenOffset);
+        clen = u16(clen);
+    }
+    static final long SIG = 0x06054b50L;
     private static final int SIZE = 22;
-    private static final short ZIP64_16 = (short) 0xFFFF;
-    private static final short ZIP64_32 = 0xFFFFFFFF;
+    private static final int ZIP64_16 = 0xFFFF;
+    private static final long ZIP64_32 = 0xFFFFFFFFL;
 
     static ZRec read(ReadableByteChannel channel, ByteBuffer buf) throws IOException {
         channel.read(buf.limit(SIZE - Integer.BYTES).rewind());
         buf.flip();
 
-        short thisDisk = buf.getShort();
-        short startDisk = buf.getShort();
-        short diskEntries = buf.getShort();
-        short totalEntries = buf.getShort();
-        int cenSize = buf.getInt();
-        int cenOffset = buf.getInt();
-        short clen = buf.getShort();
+        int thisDisk = Short.toUnsignedInt(buf.getShort());
+        int startDisk = Short.toUnsignedInt(buf.getShort());
+        int diskEntries = Short.toUnsignedInt(buf.getShort());
+        int totalEntries = Short.toUnsignedInt(buf.getShort());
+        long cenSize = Integer.toUnsignedLong(buf.getInt());
+        long cenOffset = Integer.toUnsignedLong(buf.getInt());
+        int clen = Short.toUnsignedInt(buf.getShort());
         byte[] comment = getBytes(channel, clen);
 
-        return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
+        return new Eoc(SIG, thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
     void write(WritableByteChannel out) throws IOException {
         ByteBuffer buf = ByteBuffer.allocate((int) sizeOf()).order(ByteOrder.LITTLE_ENDIAN);
-        buf.putInt(SIG);
-        buf.putShort(thisDisk);
-        buf.putShort(startDisk);
-        buf.putShort(diskEntries);
-        buf.putShort(totalEntries);
-        buf.putInt(cenSize);
-        buf.putInt(cenOffset);
+        buf.putInt((int) sig);
+        buf.putShort((short) thisDisk);
+        buf.putShort((short) startDisk);
+        buf.putShort((short) diskEntries);
+        buf.putShort((short) totalEntries);
+        buf.putInt((int) cenSize);
+        buf.putInt((int) cenOffset);
         buf.putShort((short) comment.length);
         buf.put(comment);
         out.write(buf.flip());
@@ -106,48 +117,44 @@ public record Eoc(short thisDisk,
         return SIZE + comment.length;
     }
 
-    public short clen() {
-        return (short) comment.length;
-    }
-
     public Eoc toZip64() {
-        return new Eoc(ZIP64_16, ZIP64_16, ZIP64_16, ZIP64_16, ZIP64_32, ZIP64_32, clen, comment);
+        return new Eoc(sig, ZIP64_16, ZIP64_16, ZIP64_16, ZIP64_16, ZIP64_32, ZIP64_32, clen, comment);
     }
 
     public boolean isZip64() {
         return thisDisk == ZIP64_16;
     }
 
-    public Eoc thisDisk(short thisDisk) {
-        return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
+    public Eoc thisDisk(int thisDisk) {
+        return new Eoc(sig, thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
-    public Eoc startDisk(short startDisk) {
-        return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
+    public Eoc startDisk(int startDisk) {
+        return new Eoc(sig, thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
-    public Eoc diskEntries(short diskEntries) {
-        return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
+    public Eoc diskEntries(int diskEntries) {
+        return new Eoc(sig, thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
-    public Eoc totalEntries(short totalEntries) {
-        return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
+    public Eoc totalEntries(int totalEntries) {
+        return new Eoc(sig, thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
-    public Eoc cenSize(int cenSize) {
-        return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
+    public Eoc cenSize(long cenSize) {
+        return new Eoc(sig, thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
-    public Eoc cenOffset(int cenOffset) {
-        return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
+    public Eoc cenOffset(long cenOffset) {
+        return new Eoc(sig, thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
-    public Eoc clen(short clen) {
-        return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
+    public Eoc clen(int clen) {
+        return new Eoc(sig, thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment);
     }
 
     public Eoc comment(byte[] comment) {
-        short clen = (short) comment.length;
-        return new Eoc(thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment.clone());
+        int clen = comment.length;
+        return new Eoc(sig, thisDisk, startDisk, diskEntries, totalEntries, cenSize, cenOffset, clen, comment.clone());
     }
 }
