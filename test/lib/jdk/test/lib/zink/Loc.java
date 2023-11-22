@@ -40,7 +40,20 @@ import java.util.stream.Stream;
 import static jdk.test.lib.zink.Zink.*;
 
 /**
- * Represents the Local File Header in the ZIP file format
+ * Represents the Local File Header in the ZIP file format.
+ * @param sig     local file header signature, 4 bytes
+ * @param version version needed to extract, 2 bytes
+ * @param flags   general purpose bit flag, 2 bytes
+ * @param method  compression method, 2 bytes
+ * @param time    last mod file time, 2 bytes
+ * @param date    last mod file date, 2 bytes
+ * @param crc     crc-32, 4 bytes
+ * @param csize   compressed size, 4 bytes
+ * @param size    uncompressed size, 4 bytes
+ * @param nlen    file name length, 2 bytes
+ * @param elen    extra field length, 2 bytes
+ * @param name    file name (variable size)
+ * @param extra   extra field (variable size)
  */
 public record Loc(long sig,
                   int version,
