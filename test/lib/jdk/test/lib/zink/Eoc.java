@@ -35,6 +35,15 @@ import static jdk.test.lib.zink.Zink.*;
 
 /**
  * Represents the End of Central Directory record in the ZIP file format
+ * @param sig       end of central dir signature, 4 bytes (0x06064b50)
+ * @param thisDisk  number of this disk, 2 bytes
+ * @param startDisk number of the disk with the start of the central directory, 2 bytes
+ * @param diskEntries total number of entries in the central directory on this disk, 2 bytes
+ * @param totalEntries total number of entries in the central directory, 2 bytes
+ * @param cenSize   size of the central directory, 4 bytes
+ * @param cenOffset offset of start of central directory with respect to the starting disk number, 4 bytes
+ * @param clen file comment length, 2 bytes
+ * @param comment file comment (variable length)
  */
 public record Eoc(long sig,
                   int thisDisk,

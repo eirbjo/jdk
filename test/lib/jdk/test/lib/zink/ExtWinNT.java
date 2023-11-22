@@ -29,6 +29,13 @@ import java.util.concurrent.TimeUnit;
 
 import static jdk.test.lib.zink.Zink.u32;
 
+/**
+ * Represents an NTFS Extended Field
+ * @param reserved reserved for future use, 4 bytes
+ * @param mtime File last modification time, 8 bytes
+ * @param atime File last access time, 8 bytes
+ * @param ctime File creation time, 8 bytes
+ */
 public record ExtWinNT(long reserved, long mtime, long atime, long ctime) implements ExtField {
 
     public ExtWinNT {

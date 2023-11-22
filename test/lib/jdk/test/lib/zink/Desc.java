@@ -32,6 +32,11 @@ import java.util.function.Function;
 
 /**
  * Represents the Data Decriptor record in the ZIP file format
+ * @param signed true if the descriptor is preceeded by the recommended, but optional 4 byte signature
+ * @param zip64  true if the size fields in this descriptor are encoded in 8 bytes instead of the usual 4 bytes
+ * @param crc    crc-32, 4 bytes
+ * @param csize  compressed size, 4 or 8 bytes depending on {@link #zip64}
+ * @param size   uncompressed size, 4 or 8 bytes depending on {@link #zip64}
  */
 public record Desc(boolean signed, boolean zip64, long crc, long csize, long size) implements ZRec {
 

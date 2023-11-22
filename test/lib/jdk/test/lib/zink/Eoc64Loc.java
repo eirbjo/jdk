@@ -33,7 +33,13 @@ import java.util.function.Function;
 import static jdk.test.lib.zink.Zink.u32;
 
 /**
- * Represents the Zip64 End of Central Directory locator in the ZIP file format
+ * Represents the Zip64 End of Central Directory locator record in the ZIP file format.
+ *
+ * @param sig zip64 end of central dir locator signature, 4 bytes (0x07064b50)
+ * @param eocDisk number of the disk with the start of the zip64 end of
+ *                central directory, 4 bytes
+ * @param eocOff relative offset of the zip64 end of central directory record, 8 bytes
+ * @param totalDisks total number of disks, 4 bytes
  */
 public record Eoc64Loc(long sig, long eocDisk, long eocOff, long totalDisks) implements ZRec {
     static final long SIG = 0x07064b50L;

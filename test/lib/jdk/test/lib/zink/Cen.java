@@ -42,7 +42,30 @@ import java.util.stream.Stream;
 import static jdk.test.lib.zink.Zink.*;
 
 /**
- * Represents the Central Directory Header in the ZIP file format
+ * Represents the Central Directory Header in the ZIP file format.
+ *
+ * @param sig     central file header signature, 4 bytes
+ * @param version version made by, 2 bytes
+ * @param extractVersion version needed to extract, 2 bytes
+ * @param flags   general purpose bit flag made by, 2 bytes
+ * @param method  compression method, 2 bytes
+ * @param flags   general purpose bit flag, 2 bytes
+ * @param method  compression method, 2 bytes
+ * @param time    last mod file time, 2 bytes
+ * @param date    last mod file date, 2 bytes
+ * @param crc     crc-32, 4 bytes
+ * @param csize   compressed size, 4 bytes
+ * @param size    uncompressed size, 4 bytes
+ * @param nlen    file name length, 2 bytes
+ * @param elen    extra field length, 2 bytes
+ * @param clen    file comment length, 2 bytes
+ * @param diskStart disk number start, 2 bytes
+ * @param internalAttr internal file attributes, 2 bytes
+ * @param externalAttr external file attributes, 4 bytes
+ * @param locOff relative offset of local header, 4 bytes
+ * @param name file name (variable size)
+ * @param extra extra field (variable size)
+ * @param name file comment (variable size)
  */
 public record Cen(long sig,
                   int version,
@@ -88,7 +111,7 @@ public record Cen(long sig,
     public static final long SIG = 0x02014b50L;
     // The total size of fixed-size fields in the Central Directory Header
     private static final int SIZE = 46;
-
+    // Version 45, required for Zip64
     private static final int VER_45 = 45;
     // Value used in size and csize fields when the entry is in Zip64 format
     static final long ZIP64_SIZE_32 = 0xFFFFFFFFL;

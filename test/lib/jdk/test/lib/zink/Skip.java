@@ -27,6 +27,10 @@ import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 
+/**
+ * Represents a sparse write of a number of empty data bytes
+ * @param skip the number of bytes to skip using {@link SeekableByteChannel#position(long)}
+ */
 public record Skip(long skip) implements ZRec {
     public static Skip of(long skip) {
         return new Skip(skip);

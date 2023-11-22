@@ -25,6 +25,13 @@ package jdk.test.lib.zink;
 
 import static jdk.test.lib.zink.Zink.u16;
 
+/**
+ * Represents an extensible data field with data encoded as a byte array.
+ *
+ * @param id Header ID, 2 bytes
+ * @param dsize Data Size, 2 bytes
+ * @param data data encoded as a byte array
+ */
 public record ExtGeneric(int id, int dsize, byte[] data) implements ExtField {
     public ExtGeneric {
         id = u16(id);

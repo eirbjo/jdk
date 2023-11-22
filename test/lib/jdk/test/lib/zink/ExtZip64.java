@@ -31,6 +31,16 @@ import java.util.stream.Stream;
 import static jdk.test.lib.zink.Zink.u16;
 import static jdk.test.lib.zink.Zink.u32;
 
+/**
+ * Represents a Zip64 extended field. Fields are optional, but their
+ * order is fixed. Fields not present are represented by the value -1.
+ *
+ * @param dsize size of the zip64 data block, 2 bytes
+ * @param size original uncompressed file size, 8 bytes
+ * @param csize size of compressed data, 8 bytes
+ * @param locOff offset of local header record, 8 bytes
+ * @param diskStart number of the disk on which this file starts, 4 bytes
+ */
 public record ExtZip64(int dsize, long size, long csize, long locOff, long diskStart) implements ExtField {
 
     static final int ID = 0x1;

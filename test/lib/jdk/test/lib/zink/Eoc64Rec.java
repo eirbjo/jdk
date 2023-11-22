@@ -35,6 +35,19 @@ import static jdk.test.lib.zink.Zink.*;
 
 /**
  * Represents the Zip64 End of Central Directory record in the ZIP file format
+ *
+ * @param sig zip64 end of central dir signature, 4 bytes (0x06064b50)
+ * @param size size of zip64 end of central directory record, 8 bytes
+ * @param version version made by, 2 bytes
+ * @param extractVersion version needed to extract, 2 bytes
+ * @param thisDisk  number of this disk, 4 bytes
+ * @param startDisk number of the disk with the start of the central directory, 4 bytes
+ * @param numEntries total number of entries in the central directory on this disk, 8 bytes
+ * @param totalEntries total number of entries in the central directory, 8 bytes
+ * @param cenSize  size of the central directory, 8 bytes
+ * @param cenOff  offset of start of central directory with respect to the starting
+ *                disk number, 8 bytes
+ * @param extra zip64 extensible data sector (variable size)
  */
 public record Eoc64Rec(long sig,
                        long size,

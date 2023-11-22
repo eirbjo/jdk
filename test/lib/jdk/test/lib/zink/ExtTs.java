@@ -29,6 +29,18 @@ import java.util.concurrent.TimeUnit;
 
 import static jdk.test.lib.zink.Zink.u32;
 
+/**
+ * Represents an extended timestamp field with time values in standard Unix
+ * signed-long format, indicating the number of seconds since 1 January 1970 00:00:00.
+ *
+ * @param flag bit 0           if set, modification time is present
+ *             bit 1           if set, access time is present
+ *             bit 2           if set, creation time is present
+ *             bits 3-7        reserved for additional timestamps; not set
+ * @param modtime time of last modification, 4 bytes (optional)
+ * @param actime  time of last access, 4 bytes (optional)
+ * @param crtime  time of original creation, 4 bytes (optional)
+ */
 public record ExtTs(byte flag, long modtime, long actime, long crtime) implements ExtField {
 
     public ExtTs {

@@ -712,7 +712,7 @@ public abstract class Zink  implements Closeable
                     long csize = inflater.getBytesRead();
                     long size = inflater.getBytesWritten();
                     channel.position(start + csize);
-                    return new FileData(new SeekableByteChannelWriter(channel, (int) start, csize, this::getFileDataBuffer), csize);
+                    return new FileData(new SeekableByteChannelWriter(channel, start, csize, this::getFileDataBuffer), csize);
                 } catch (DataFormatException e) {
                     throw new IOException(e.getMessage(), e);
                 }

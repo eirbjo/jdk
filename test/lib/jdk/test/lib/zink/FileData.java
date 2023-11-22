@@ -29,7 +29,9 @@ import java.io.Writer;
 import java.nio.channels.WritableByteChannel;
 
 /**
- * Represents the File Data in the ZIP file format
+ * Represents the File Data record in the ZIP file format
+ * @param writer a {@link Writer} which can write file data
+ * @param size number of bytes in file data record
  */
 public record FileData(Writer writer, long size) implements ZRec {
     void write(WritableByteChannel out) throws IOException {
