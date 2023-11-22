@@ -47,7 +47,7 @@ import static jdk.test.lib.zink.Zink.*;
  * @param sig     central file header signature, 4 bytes
  * @param version version made by, 2 bytes
  * @param extractVersion version needed to extract, 2 bytes
- * @param flags   general purpose bit flag made by, 2 bytes
+ * @param flags   general purpose bit flag, 2 bytes
  * @param method  compression method, 2 bytes
  * @param flags   general purpose bit flag, 2 bytes
  * @param method  compression method, 2 bytes
