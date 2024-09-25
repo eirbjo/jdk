@@ -1215,6 +1215,52 @@ public class ZipFile implements ZipConstants, Closeable {
         //
         private int[] entries;                  // array of hashed cen entry
 
+        private void checkFixedHeaders(byte[] cen, int pos) throws ZipException {
+            if (CENSIG(cen, pos) != CENSIG) {
+                zerror("invalid CEN header (bad signature)");
+            }
+            int method = CENHOW(cen, pos);
+            int flag   = CENFLG(cen, pos);
+            if ((flag & 1) != 0) {
+                zerror("invalid CEN header (encrypted entry)");
+            }
+            if (method != STORED && method != DEFLATED) {
+                zerror("invalid CEN header (bad compression method: " + method + ")");
+            }
+        }
+
+        private int checkVariableHeaders(byte[] cen, int pos, int entryPos, int nlen, int elen, int clen) throws ZipException {
+            int headerSize = CENHDR + nlen + clen + elen;
+            // CEN header size + name length + comment length + extra length
+            // should not exceed 65,535 bytes per the PKWare APP.NOTE
+            // 4.4.10, 4.4.11, & 4.4.12.  Also check that current CEN header will
+            // not exceed the length of the CEN array
+            if (headerSize > 0xFFFF || (long) pos + headerSize > cen.length - ENDHDR) {
+                zerror("invalid CEN header (bad header size)");
+            }
+
+            if (elen > 0 && !DISABLE_ZIP64_EXTRA_VALIDATION) {
+                checkExtraFields(pos, entryPos + nlen, elen);
+            } else if (elen == 0 && (CENSIZ(cen, pos) == ZIP64_MAGICVAL
+                    || CENLEN(cen, pos) == ZIP64_MAGICVAL
+                    || CENOFF(cen, pos) == ZIP64_MAGICVAL
+                    || CENDSK(cen, pos) == ZIP64_MAGICCOUNT)) {
+                zerror("Invalid CEN header (invalid zip64 extra len size)");
+            }
+            // Validate comment if it exists.
+            // If the bytes representing the comment cannot be converted to
+            // a String via zcp.toString, an Exception will be thrown
+            if (clen > 0) {
+                int start = entryPos + nlen + elen;
+                ZipCoder zcp = zipCoderForPos(pos);
+                try {
+                    zcp.toString(cen, start, clen);
+                } catch (Exception e) {
+                    zerror("invalid CEN header (bad entry name or comment)");
+                }
+            }
+            return headerSize;
+        }
         // Checks the entry at offset pos in the CEN, calculates the Entry values as per above,
         // then returns the length of the entry name.
         private void checkAndAddEntry(byte[] cen, int pos, int entryPos, int index, int nlen)
@@ -1232,20 +1278,6 @@ public class ZipFile implements ZipConstants, Closeable {
                 entries[index + 2] = pos;
             } catch (Exception e) {
                 zerror("invalid CEN header (bad entry name or comment)");
-            }
-        }
-
-        private void checkFixedHeaders(byte[] cen, int pos) throws ZipException {
-            if (CENSIG(cen, pos) != CENSIG) {
-                zerror("invalid CEN header (bad signature)");
-            }
-            int method = CENHOW(cen, pos);
-            int flag   = CENFLG(cen, pos);
-            if ((flag & 1) != 0) {
-                zerror("invalid CEN header (encrypted entry)");
-            }
-            if (method != STORED && method != DEFLATED) {
-                zerror("invalid CEN header (bad compression method: " + method + ")");
             }
         }
 
@@ -1810,39 +1842,6 @@ public class ZipFile implements ZipConstants, Closeable {
             if (pos + ENDHDR != cen.length) {
                 zerror("invalid CEN header (bad header size)");
             }
-        }
-
-        private int checkVariableHeaders(byte[] cen, int pos, int entryPos, int nlen, int elen, int clen) throws ZipException {
-            int headerSize = CENHDR + nlen + clen + elen;
-            // CEN header size + name length + comment length + extra length
-            // should not exceed 65,535 bytes per the PKWare APP.NOTE
-            // 4.4.10, 4.4.11, & 4.4.12.  Also check that current CEN header will
-            // not exceed the length of the CEN array
-            if (headerSize > 0xFFFF || (long) pos + headerSize > cen.length - ENDHDR) {
-                zerror("invalid CEN header (bad header size)");
-            }
-
-            if (elen > 0 && !DISABLE_ZIP64_EXTRA_VALIDATION) {
-                checkExtraFields(pos, entryPos + nlen, elen);
-            } else if (elen == 0 && (CENSIZ(cen, pos) == ZIP64_MAGICVAL
-                    || CENLEN(cen, pos) == ZIP64_MAGICVAL
-                    || CENOFF(cen, pos) == ZIP64_MAGICVAL
-                    || CENDSK(cen, pos) == ZIP64_MAGICCOUNT)) {
-                zerror("Invalid CEN header (invalid zip64 extra len size)");
-            }
-            // Validate comment if it exists.
-            // If the bytes representing the comment cannot be converted to
-            // a String via zcp.toString, an Exception will be thrown
-            if (clen > 0) {
-                int start = entryPos + nlen + elen;
-                ZipCoder zcp = zipCoderForPos(pos);
-                try {
-                    zcp.toString(cen, start, clen);
-                } catch (Exception e) {
-                    zerror("invalid CEN header (bad entry name or comment)");
-                }
-            }
-            return headerSize;
         }
 
         private int nextEntryPos(int pos, int headerSize) {
