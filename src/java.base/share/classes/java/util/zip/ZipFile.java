@@ -1217,11 +1217,9 @@ public class ZipFile implements ZipConstants, Closeable {
 
         // Checks the entry at offset pos in the CEN, calculates the Entry values as per above,
         // then returns the length of the entry name.
-        private void checkAndAddEntry(byte[] cen, int pos, int index, int nlen)
+        private void checkAndAddEntry(byte[] cen, int pos, int entryPos, int index, int nlen)
             throws ZipException
         {
-            int entryPos = pos + CENHDR;
-
             try {
                 ZipCoder zcp = zipCoderForPos(pos);
                 int hash = zcp.checkedHash(cen, entryPos, nlen);
@@ -1756,8 +1754,8 @@ public class ZipFile implements ZipConstants, Closeable {
                 int nlen = CENNAM(cen, pos);
                 int elen = CENEXT(cen, pos);
                 int clen = CENCOM(cen, pos);
-                checkVariableHeaders(cen, pos, nlen, elen, clen);
-                checkAndAddEntry(cen, pos, idx, nlen);
+                int headerSize = checkVariableHeaders(cen, pos, entryPos, nlen, elen, clen);
+                checkAndAddEntry(cen, pos, entryPos, idx, nlen);
 
                 idx += 3;
 
@@ -1786,7 +1784,7 @@ public class ZipFile implements ZipConstants, Closeable {
                     }
                 }
                 // skip to the start of the next entry
-                pos = nextEntryPos(pos, entryPos, nlen);
+                pos = nextEntryPos(pos, headerSize);
                 entryPos = pos + CENHDR;
             }
 
@@ -1814,17 +1812,16 @@ public class ZipFile implements ZipConstants, Closeable {
             }
         }
 
-        private void checkVariableHeaders(byte[] cen, int pos, int nlen, int elen, int clen) throws ZipException {
-            long headerSize = (long)CENHDR + nlen + clen + elen;
+        private int checkVariableHeaders(byte[] cen, int pos, int entryPos, int nlen, int elen, int clen) throws ZipException {
+            int headerSize = CENHDR + nlen + clen + elen;
             // CEN header size + name length + comment length + extra length
             // should not exceed 65,535 bytes per the PKWare APP.NOTE
             // 4.4.10, 4.4.11, & 4.4.12.  Also check that current CEN header will
             // not exceed the length of the CEN array
-            if (headerSize > 0xFFFF || pos + headerSize > cen.length - ENDHDR) {
+            if (headerSize > 0xFFFF || (long) pos + headerSize > cen.length - ENDHDR) {
                 zerror("invalid CEN header (bad header size)");
             }
 
-            int entryPos = pos + CENHDR;
             if (elen > 0 && !DISABLE_ZIP64_EXTRA_VALIDATION) {
                 checkExtraFields(pos, entryPos + nlen, elen);
             } else if (elen == 0 && (CENSIZ(cen, pos) == ZIP64_MAGICVAL
@@ -1845,10 +1842,11 @@ public class ZipFile implements ZipConstants, Closeable {
                     zerror("invalid CEN header (bad entry name or comment)");
                 }
             }
+            return headerSize;
         }
 
-        private int nextEntryPos(int pos, int entryPos, int nlen) {
-            return entryPos + nlen + CENCOM(cen, pos) + CENEXT(cen, pos);
+        private int nextEntryPos(int pos, int headerSize) {
+            return pos + headerSize;
         }
 
         private static void zerror(String msg) throws ZipException {
