@@ -89,9 +89,8 @@ class ModuleReferences {
      */
     static ModuleReference newJarModule(ModuleInfo.Attributes attrs,
                                         ModulePatcher patcher,
-                                        Path file) {
-        URI uri = file.toUri();
-        Supplier<ModuleReader> supplier = () -> new JarModuleReader(file, uri);
+                                        URI uri, Supplier<JarFile> jarFile) {
+        Supplier<ModuleReader> supplier = () -> new JarModuleReader(uri, jarFile.get());
         HashSupplier hasher = (a) -> ModuleHashes.computeHash(supplier, a);
         return newModule(attrs, uri, supplier, patcher, hasher);
     }
@@ -233,8 +232,18 @@ class ModuleReferences {
             }
         }
 
-        JarModuleReader(Path path, URI uri) {
-            this.jf = newJarFile(path);
+        static JarFile newNestedJarFile(ZipFile zipFile, String name) {
+            try {
+                return new JarFile(zipFile, name,
+                        true,                       // verify
+                        JarFile.runtimeVersion());
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(ioe);
+            }
+        }
+
+        JarModuleReader(URI uri, JarFile jarFile) {
+            this.jf = jarFile;
             this.uri = uri;
         }
 
@@ -251,7 +260,12 @@ class ModuleReferences {
                 if (je.isDirectory() && !name.endsWith("/"))
                     name += "/";
                 String encodedPath = ParseUtil.encodePath(name, false);
-                String uris = "jar:" + uri + "!/" + encodedPath;
+                String uris;
+                if ("jar".equals(uri.getScheme())) {
+                    uris = uri +"!/" + encodedPath;
+                } else {
+                    uris = "jar:" + uri + "!/" + encodedPath;
+                }
                 return Optional.of(URI.create(uris));
             } else {
                 return Optional.empty();

@@ -70,6 +70,7 @@ import jdk.internal.access.JavaUtilZipFileAccess;
 import jdk.internal.access.SharedSecrets;
 import sun.net.util.URLUtil;
 import sun.net.www.ParseUtil;
+import sun.net.www.protocol.jar.URLJarFile;
 import sun.security.action.GetPropertyAction;
 
 /**
@@ -741,7 +742,7 @@ public class URLClassPath {
                           @SuppressWarnings("removal") AccessControlContext acc)
             throws IOException
         {
-            super(newURL("jar", "", -1, url + "!/", jarHandler));
+            super(baseURL(url, jarHandler));
             csu = url;
             this.acc = acc;
 
@@ -749,10 +750,17 @@ public class URLClassPath {
         }
 
         @SuppressWarnings("deprecation")
-        private static URL newURL(String protocol, String host, int port, String file, URLStreamHandler handler)
+        private static URL baseURL(URL url, URLStreamHandler handler)
                 throws MalformedURLException
         {
-            return new URL(protocol, host, port, file, handler);
+            String file;
+
+            if ("jar".equals(url.getProtocol())) {
+                file = url.getFile();
+            } else {
+                file = url.toString();
+            }
+            return new URL("jar", "", -1, file + "!/", handler);
         }
 
         @Override
@@ -766,8 +774,14 @@ public class URLClassPath {
             }
         }
 
-        private boolean isOptimizable(URL url) {
+        private boolean isFileURL(URL url) {
             return "file".equals(url.getProtocol());
+        }
+
+        static boolean isNestedJarFileURL(URL url) {
+            return "jar".equals(url.getProtocol())
+                    && url.getFile().startsWith("file:")
+                    && url.getFile().contains("!/");
         }
 
         @SuppressWarnings("removal")
@@ -809,14 +823,24 @@ public class URLClassPath {
         }
 
         private JarFile getJarFile(URL url) throws IOException {
-            // Optimize case where url refers to a local jar file
-            if (isOptimizable(url)) {
+            // Optimize cases where url refers to a local (potentially nested) jar file
+            if (isFileURL(url)) {
                 FileURLMapper p = new FileURLMapper(url);
                 if (!p.exists()) {
                     throw new FileNotFoundException(p.getPath());
                 }
                 return checkJar(new JarFile(new File(p.getPath()), true, ZipFile.OPEN_READ,
                         JarFile.runtimeVersion()));
+            } else if (isNestedJarFileURL(url)) {
+                URL jarFileURL = URLJarFile.findJarFileURL(url);
+                File file = new File(ParseUtil.decode(jarFileURL.getFile()));
+                if (!file.exists()) {
+                    throw new FileNotFoundException(file.getPath());
+                }
+                String entryName = URLJarFile.findEntryName(url);
+                try (JarFile outer = new JarFile(file, true, JarFile.OPEN_READ)) {
+                    return checkJar(new JarFile(outer, entryName, true, JarFile.runtimeVersion()));
+                }
             }
             @SuppressWarnings("deprecation")
             URLConnection uc = (new URL(getBaseURL(), "#runtime")).openConnection();
@@ -938,7 +962,7 @@ public class URLClassPath {
          * Parses value of the Class-Path manifest attribute and returns
          * an array of URLs relative to the specified base URL.
          */
-        private static URL[] parseClassPath(URL base, String value)
+        private static URL[] parseClassPath(URL baseURL, String value)
             throws MalformedURLException
         {
             StringTokenizer st = new StringTokenizer(value);
@@ -946,6 +970,12 @@ public class URLClassPath {
             int i = 0;
             while (st.hasMoreTokens()) {
                 String path = st.nextToken();
+                URL base = baseURL;
+                if (path.startsWith("jar:") && path.length() > "jar:".length()) {
+                    path = path.substring("jar:".length());
+                    @SuppressWarnings("deprecation")
+                    var unused_ = base = new URL("jar", "", -1, base +"!/");
+                }
                 @SuppressWarnings("deprecation")
                 URL url = DISABLE_CP_URL_CHECK ? new URL(base, path) : tryResolve(base, path);
                 if (url != null) {

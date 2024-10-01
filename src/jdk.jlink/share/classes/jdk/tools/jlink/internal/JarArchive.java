@@ -28,6 +28,7 @@ package jdk.tools.jlink.internal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.jar.JarFile;
@@ -71,17 +72,17 @@ public abstract class JarArchive implements Archive {
         }
     }
 
-    private final Path file;
+    private final URI uri;
     private final String moduleName;
     private final Runtime.Version version;
     // currently processed JarFile
     private JarFile jarFile;
 
-    protected JarArchive(String mn, Path file, Runtime.Version version) {
+    protected JarArchive(String mn, URI uri, Runtime.Version version) {
         Objects.requireNonNull(mn);
-        Objects.requireNonNull(file);
+        Objects.requireNonNull(uri);
         this.moduleName = mn;
-        this.file = file;
+        this.uri = uri;
         this.version = Objects.requireNonNull(version);
     }
 
@@ -91,8 +92,8 @@ public abstract class JarArchive implements Archive {
     }
 
     @Override
-    public Path getPath() {
-        return file;
+    public URI getURI() {
+        return uri;
     }
 
     @Override
@@ -127,7 +128,17 @@ public abstract class JarArchive implements Archive {
         if (jarFile != null) {
             jarFile.close();
         }
-        jarFile = new JarFile(file.toFile(), true, ZipFile.OPEN_READ, version);
+        if ("jar".equals(uri.getScheme())) {
+            String spec = uri.getSchemeSpecificPart();
+            int separator = spec.indexOf("!/");
+            Path path = Path.of(spec.substring(0, separator));
+            String name = spec.substring(separator + 2);
+            try (ZipFile outer = new ZipFile(path.toFile())) {
+                jarFile = new JarFile(outer, name, true, version);
+            }
+        } else {
+            jarFile = new JarFile(Path.of(uri).toFile(), true, ZipFile.OPEN_READ, version);
+        }
     }
 
     protected JarFile getJarFile() {
@@ -136,14 +147,14 @@ public abstract class JarArchive implements Archive {
 
     @Override
     public int hashCode() {
-        return Objects.hash(file, moduleName, version);
+        return Objects.hash(uri, moduleName, version);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof JarArchive) {
             JarArchive other = (JarArchive)obj;
-            return Objects.equals(file, other.file) &&
+            return Objects.equals(uri, other.uri) &&
                    Objects.equals(moduleName, other.moduleName) &&
                    Objects.equals(version, other.version);
         }

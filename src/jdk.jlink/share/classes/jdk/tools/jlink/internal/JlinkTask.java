@@ -503,12 +503,9 @@ public class JlinkTask {
         });
     }
 
-    private static Path toPathLocation(ResolvedModule m) {
+    private static URI toUri(ResolvedModule m) {
         Optional<URI> ouri = m.reference().location();
-        if (ouri.isEmpty())
-            throw new InternalError(m + " does not have a location");
-        URI uri = ouri.get();
-        return Paths.get(uri);
+        return ouri.orElseThrow(() -> new InternalError(m + " does not have a location"));
     }
 
 
@@ -563,8 +560,8 @@ public class JlinkTask {
                 log.println("WARNING: Using incubator modules: " + im);
         }
 
-        Map<String, Path> mods = cf.modules().stream()
-            .collect(Collectors.toMap(ResolvedModule::name, JlinkTask::toPathLocation));
+        Map<String, URI> mods = cf.modules().stream()
+            .collect(Collectors.toMap(ResolvedModule::name, JlinkTask::toUri));
         // determine the target platform of the image being created
         Platform targetPlatform = targetPlatform(cf, mods);
         // if the user specified any --endian, then it must match the target platform's native
@@ -626,10 +623,10 @@ public class JlinkTask {
         };
     }
 
-    private static Platform targetPlatform(Configuration cf, Map<String, Path> modsPaths) throws IOException {
-        Path javaBasePath = modsPaths.get("java.base");
+    private static Platform targetPlatform(Configuration cf, Map<String, URI> modsPaths) throws IOException {
+        URI javaBasePath = modsPaths.get("java.base");
         assert javaBasePath != null : "java.base module path is missing";
-        if (isJavaBaseFromDefaultModulePath(javaBasePath)) {
+        if (isJavaBaseFromDefaultModulePath(Path.of(javaBasePath))) {
             // this implies that the java.base module used for the target image
             // will correspond to the current platform. So this isn't an attempt to
             // build a cross-platform image. We use the current platform's endianness
@@ -853,7 +850,7 @@ public class JlinkTask {
         final Set<Archive> archives;
 
         ImageHelper(Configuration cf,
-                    Map<String, Path> modsPaths,
+                    Map<String, URI> modsPaths,
                     Platform targetPlatform,
                     Path packagedModulesPath,
                     boolean ignoreSigning) throws IOException {
@@ -877,9 +874,9 @@ public class JlinkTask {
                                 .collect(Collectors.toSet());
         }
 
-        private Archive newArchive(String module, Path path) {
+        private Archive newArchive(String module, URI path) {
             if (path.toString().endsWith(".jmod")) {
-                return new JmodArchive(module, path);
+                return new JmodArchive(module, Path.of(path));
             } else if (path.toString().endsWith(".jar")) {
                 ModularJarArchive modularJarArchive = new ModularJarArchive(module, path, version);
 
@@ -906,10 +903,10 @@ public class JlinkTask {
                 }
 
                 return modularJarArchive;
-            } else if (Files.isDirectory(path)) {
-                Path modInfoPath = path.resolve("module-info.class");
+            } else if (Files.isDirectory(Path.of(path))) {
+                Path modInfoPath = Path.of(path).resolve("module-info.class");
                 if (Files.isRegularFile(modInfoPath)) {
-                    return new DirArchive(path, findModuleName(modInfoPath));
+                    return new DirArchive(Path.of(path), findModuleName(modInfoPath));
                 } else {
                     throw new IllegalArgumentException(
                         taskHelper.getMessage("err.not.a.module.directory", path));
@@ -938,9 +935,11 @@ public class JlinkTask {
                 // copy the packaged modules to the given path
                 Files.createDirectories(packagedModulesPath);
                 for (Archive a : archives) {
-                    Path file = a.getPath();
-                    Path dest = packagedModulesPath.resolve(file.getFileName());
-                    Files.copy(file, dest);
+                    URI file = a.getURI();
+                    Path dest = packagedModulesPath.resolve(file.getPath().substring(file.getPath().lastIndexOf("/")+1));
+                    try (var in = file.toURL().openStream()) {
+                        Files.copy(in, dest);
+                    }
                 }
             }
             return image;

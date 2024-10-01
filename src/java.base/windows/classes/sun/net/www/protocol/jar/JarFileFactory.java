@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1999, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -91,7 +91,7 @@ class JarFileFactory implements URLJarFile.URLJarFileCloseController {
             return get(url, false);
         }
         URL patched = urlFor(url);
-        if (!URLJarFile.isFileURL(patched)) {
+        if (!(URLJarFile.isFileURL(patched) || URLJarFile.isNestedJarFileURL(url))) {
             // A temporary file will be created, we can prepopulate
             // the cache in this case.
             return get(url, useCaches);

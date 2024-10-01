@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -32,6 +32,7 @@ import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.security.Permission;
 import sun.net.www.ParseUtil;
+import sun.net.www.protocol.jar.URLJarFile;
 
 /**
  * A URL Connection to a Java ARchive (JAR) file or an entry in a JAR
@@ -162,36 +163,11 @@ public abstract class JarURLConnection extends URLConnection {
      * cache them if they're not there.
      */
     private void parseSpecs(URL url) throws MalformedURLException {
-        String spec = url.getFile();
-
-        int separator = spec.indexOf("!/");
-        /*
-         * REMIND: we don't handle nested JAR URLs
-         */
-        if (separator == -1) {
-            throw new MalformedURLException("no !/ found in url spec:" + spec);
-        }
-
-        @SuppressWarnings("deprecation")
-        var _unused = jarFileURL = new URL(spec.substring(0, separator++));
-
-        /*
-         * The url argument may have had a runtime fragment appended, so
-         * we need to add a runtime fragment to the jarFileURL to enable
-         * runtime versioning when the underlying jar file is opened.
-         */
-        if ("runtime".equals(url.getRef())) {
-            @SuppressWarnings("deprecation")
-            var _unused2 = jarFileURL = new URL(jarFileURL, "#runtime");
-        }
-        entryName = null;
-
-        /* if ! is the last letter of the innerURL, entryName is null */
-        if (++separator != spec.length()) {
-            entryName = spec.substring(separator, spec.length());
-            entryName = ParseUtil.decode (entryName);
-        }
+        jarFileURL = URLJarFile.findJarFileURL(url);
+        entryName = URLJarFile.findEntryName(url);
     }
+
+
 
     /**
      * Returns the URL for the Jar file for this connection.

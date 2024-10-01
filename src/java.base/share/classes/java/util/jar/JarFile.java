@@ -342,19 +342,78 @@ public class JarFile extends ZipFile {
      * @since 9
      */
     public JarFile(File file, boolean verify, int mode, Runtime.Version version) throws IOException {
+        this(file, verify, mode, version, 0, file.length());
+    }
+
+    /**
+     * Creates a new {@code JarFile} to read from the specified
+     * {@code File} object in the specified mode.  The JAR file contents will
+     * be read from a range specified by {@off} and {@len}. The mode argument
+     * must be either {@code OPEN_READ} or {@code OPEN_READ | OPEN_DELETE}.
+     * The version argument, after being converted to a canonical form, is
+     * used to configure the {@code JarFile} for processing
+     * multi-release jar files.
+     * <p>
+     * The canonical form derived from the version parameter is
+     * {@code Runtime.Version.parse(Integer.toString(n))} where {@code n} is
+     * {@code Math.max(version.feature(), JarFile.baseVersion().feature())}.
+     *
+     * @param file the jar file to be opened for reading
+     * @param verify whether or not to verify the jar file if
+     * it is signed.
+     * @param mode the mode in which the file is to be opened
+     * @param version specifies the release version for a multi-release jar file
+     * @param off the offset into the file where the JAR file range starts
+     * @param len the length of the JAR file range
+     * @throws IOException if an I/O error has occurred
+     * @throws IllegalArgumentException
+     *         if the {@code mode} argument is invalid
+     * @throws SecurityException if access to the file is denied
+     *         by the SecurityManager
+     * @throws NullPointerException if {@code version} is {@code null}
+     * @since 24
+     */
+    private JarFile(File file, boolean verify, int mode, Runtime.Version version, long off, long len) throws IOException {
         super(file, mode);
         this.verify = verify;
+        this.version = canonizalizedVersion(version);
+        this.versionFeature = this.version.feature();
+    }
+
+    private Runtime.Version canonizalizedVersion(Runtime.Version version) {
         Objects.requireNonNull(version);
         if (MULTI_RELEASE_FORCED || version.feature() == RUNTIME_VERSION.feature()) {
             // This deals with the common case where the value from JarFile.runtimeVersion() is passed
-            this.version = RUNTIME_VERSION;
+            return RUNTIME_VERSION;
         } else if (version.feature() <= BASE_VERSION_FEATURE) {
             // This also deals with the common case where the value from JarFile.baseVersion() is passed
-            this.version = BASE_VERSION;
+            return BASE_VERSION;
         } else {
             // Canonicalize
-            this.version = Runtime.Version.parse(Integer.toString(version.feature()));
+            return Runtime.Version.parse(Integer.toString(version.feature()));
         }
+    }
+
+    /**
+     * Open a new {@code JarFile} for reading from a JAR file
+     * packaged within a {@code parent} ZIP file.
+     * <p>
+     * The nested JAR file be packaged using the {@code STORED} compression method.
+     *
+     * @param parent the ZipFile containing the nested JAR file
+     * @param entry the entry name of the nested JAR file entry
+     * @param verify whether or not to verify the jar file if
+     * it is signed.
+     * @param version specifies the release version for a multi-release jar file
+     * @throws IOException if an I/O error has occurred
+     * @throws IllegalStateException if the outer {@code JarFile} file has been closed
+     */
+    public JarFile(ZipFile parent, String entry, boolean verify, Runtime.Version version)
+            throws IOException
+    {
+        super(parent, entry);
+        this.verify = verify;
+        this.version = canonizalizedVersion(version);
         this.versionFeature = this.version.feature();
     }
 

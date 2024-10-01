@@ -95,8 +95,7 @@ import static java.util.zip.ZipUtils.*;
  */
 public class ZipFile implements ZipConstants, Closeable {
 
-    private final String filePath;     // ZIP file path
-    private final String fileName;     // name of the file
+    private final File file; // ZIP file
     private volatile boolean closeRequested;
 
     // The "resource" used by this ZIP file that needs to be
@@ -230,13 +229,54 @@ public class ZipFile implements ZipConstants, Closeable {
     @SuppressWarnings("this-escape")
     public ZipFile(File file, int mode, Charset charset) throws IOException
     {
+        this(file, mode, charset, 0, file.length());
+    }
+
+    /**
+     * Opens a new {@code ZipFile} to read from the specified
+     * {@code File} object in the specified mode. The ZIP file contents will
+     * be read from a range specified by {@off} and {@len}. The mode argument
+     * must be either {@code OPEN_READ} or {@code OPEN_READ | OPEN_DELETE}.
+     *
+     * <p>First, if there is a security manager, its {@code checkRead}
+     * method is called with the {@code name} argument as its argument to
+     * ensure the read is allowed.
+     *
+     * @param file the ZIP file to be opened for reading
+     * @param mode the mode in which the file is to be opened
+     * @param charset
+     *        the {@linkplain java.nio.charset.Charset charset} to
+     *        be used to decode the ZIP entry name and comment that are not
+     *        encoded by using UTF-8 encoding (indicated by entry's general
+     *        purpose flag).
+     * @param off the offset into the file where the ZIP file starts
+     * @param len the length of the ZIP file
+     *
+     * @throws ZipException if a ZIP format error has occurred
+     * @throws IOException if an I/O error has occurred
+     *
+     * @throws SecurityException
+     *         if a security manager exists and its {@code checkRead}
+     *         method doesn't allow read access to the file, or its
+     *         {@code checkDelete} method doesn't allow deleting the
+     *         file when the {@code OPEN_DELETE} flag is set
+     *
+     * @throws IllegalArgumentException if the {@code mode} argument is invalid
+     *
+     * @see SecurityManager#checkRead(java.lang.String)
+     *
+     * @since 24
+     */
+    @SuppressWarnings("this-escape")
+    private ZipFile(File file, int mode, Charset charset, long off, long len) throws IOException
+    {
         if (((mode & OPEN_READ) == 0) ||
             ((mode & ~(OPEN_READ | OPEN_DELETE)) != 0)) {
             throw new IllegalArgumentException("Illegal mode: 0x"+
                                                Integer.toHexString(mode));
         }
         String name = file.getPath();
-        file = new File(name);
+        this.file = file = new File(name);
         @SuppressWarnings("removal")
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -247,11 +287,9 @@ public class ZipFile implements ZipConstants, Closeable {
         }
         Objects.requireNonNull(charset, "charset");
 
-        this.filePath = name;
-        this.fileName = file.getName();
         long t0 = System.nanoTime();
 
-        this.res = new CleanableResource(this, ZipCoder.get(charset), file, mode);
+        this.res = new CleanableResource(this, ZipCoder.get(charset), file, mode, off, len);
 
         PerfCounter.getZipFileOpenTime().addElapsedTimeFrom(t0);
         PerfCounter.getZipFileCount().increment();
@@ -305,6 +343,49 @@ public class ZipFile implements ZipConstants, Closeable {
     public ZipFile(File file, Charset charset) throws IOException
     {
         this(file, OPEN_READ, charset);
+    }
+
+    /**
+     * Open a new {@code ZipFile} for reading from a ZIP file
+     * packaged inside an {@code outer} ZIP file.
+     * <p>
+     * The nested ZIP file must use the {@code STORED} compression method.
+     * <p>
+     * The UTF-8 {@link java.nio.charset.Charset charset} is used to
+     * decode the entry names and comments of the nested ZIP file
+     *
+     * @param outer the ZipFile containing the nested ZIP file
+     * @param name the entry name of the nested ZIP file
+     *
+     * @throws IOException if an I/O error has occurred
+     * @throws IllegalStateException if the outer {@code ZipFile} file has been closed
+     * @since 24
+     */
+    public ZipFile(ZipFile outer, String name) throws IOException {
+        this(outer, name, UTF_8.INSTANCE);
+    }
+
+    /**
+     * Open a new {@code ZipFile} for reading from a ZIP file
+     * packaged inside an {@code outer} ZIP file.
+     * <p>
+     * The nested ZIP file must use the {@code STORED} compression method.
+     *
+     * @param outer the ZipFile containing the nested ZIP file
+     * @param name the entry name of the nested ZIP file
+     * @param charset
+     *        The {@linkplain java.nio.charset.Charset charset} to be
+     *        used to decode the ZIP entry name and comment (ignored if
+     *        the <a href="package-summary.html#lang_encoding"> language
+     *        encoding bit</a> of the ZIP entry's general purpose bit
+     *        flag is set).
+     * @throws IOException if an I/O error has occurred
+     * @throws IllegalStateException if the outer {@code ZipFile} file has been closed
+     * @since 24
+     */
+    public ZipFile(ZipFile outer, String name, Charset charset) throws IOException {
+        this(outer.file, OPEN_READ, charset,
+                outer.getOffset(name), outer.getEntrySize(name));
     }
 
     /**
@@ -428,6 +509,31 @@ public class ZipFile implements ZipConstants, Closeable {
         }
     }
 
+    private long getOffset(String name) throws IOException {
+        synchronized (this) {
+            ensureOpen();
+            EntryPos entryPos = res.zsrc.getEntryPos(name, false);
+            if (entryPos == null) {
+                throw new ZipException("Nested entry not found");
+            }
+            byte[] cen = res.zsrc.cen;
+            int method = CENHOW(cen, entryPos.pos);
+            if (method != ZipEntry.STORED) {
+                throw new ZipException("Nested zip file must use the STORED compression method");
+            }
+            try (var stream = new ZipFileInputStream(cen, entryPos.pos)) {
+                return stream.initDataOffset();
+            }
+        }
+    }
+
+    private long getEntrySize(String name) throws IOException {
+        ZipEntry entry = getEntry(name);
+        if (entry == null) {
+            throw new ZipException("Nested entry not found");
+        }
+        return entry.size;
+    }
     private static class InflaterCleanupAction implements Runnable {
         private final Inflater inf;
         private final CleanableResource res;
@@ -501,7 +607,7 @@ public class ZipFile implements ZipConstants, Closeable {
      * {@return the path name of the ZIP file}
      */
     public String getName() {
-        return filePath;
+        return file.getPath();
     }
 
     /**
@@ -509,7 +615,7 @@ public class ZipFile implements ZipConstants, Closeable {
      */
     @Override
     public String toString() {
-        return this.fileName
+        return file.getName()
                 + "@" + Integer.toHexString(System.identityHashCode(this));
     }
 
@@ -729,11 +835,11 @@ public class ZipFile implements ZipConstants, Closeable {
 
         Source zsrc;
 
-        CleanableResource(ZipFile zf, ZipCoder zc, File file, int mode) throws IOException {
+        CleanableResource(ZipFile zf, ZipCoder zc, File file, int mode, long off, long len) throws IOException {
             this.cleanable = CleanerFactory.cleaner().register(zf, this);
             this.istreams = Collections.newSetFromMap(new WeakHashMap<>());
             this.inflaterCache = new ArrayDeque<>();
-            this.zsrc = Source.get(file, (mode & OPEN_DELETE) != 0, zc);
+            this.zsrc = Source.get(file, off, len, (mode & OPEN_DELETE) != 0, zc);
         }
 
         void clean() {
@@ -1456,25 +1562,32 @@ public class ZipFile implements ZipConstants, Closeable {
          */
         private static class Key {
             final BasicFileAttributes attrs;
-            File file;
+            final File file;
             final boolean utf8;
+            private final long off;
+            private final long len;
 
-            public Key(File file, BasicFileAttributes attrs, ZipCoder zc) {
+            public Key(File file, BasicFileAttributes attrs, ZipCoder zc, long off, long len) {
                 this.attrs = attrs;
                 this.file = file;
                 this.utf8 = zc.isUTF8();
+                this.off = off;
+                this.len = len;
             }
 
             public int hashCode() {
                 long t = utf8 ? 0 : Long.MAX_VALUE;
                 t += attrs.lastModifiedTime().toMillis();
                 Object fk = attrs.fileKey();
-                return Long.hashCode(t) +
+                return Long.hashCode(t) + Long.hashCode(off) + Long.hashCode(len) +
                         (fk != null ? fk.hashCode() : file.hashCode());
             }
 
             public boolean equals(Object obj) {
                 if (obj instanceof Key key) {
+                    if (key.off != off || key.len != len) {
+                        return false;
+                    }
                     if (key.utf8 != utf8) {
                         return false;
                     }
@@ -1499,12 +1612,12 @@ public class ZipFile implements ZipConstants, Closeable {
         private static final java.nio.file.FileSystem builtInFS =
                 DefaultFileSystemProvider.theFileSystem();
 
-        static Source get(File file, boolean toDelete, ZipCoder zc) throws IOException {
+        static Source get(File file, long off, long len, boolean toDelete, ZipCoder zc) throws IOException {
             final Key key;
             try {
                 key = new Key(file,
                         Files.readAttributes(builtInFS.getPath(file.getPath()),
-                                BasicFileAttributes.class), zc);
+                                BasicFileAttributes.class), zc, off, len);
             } catch (InvalidPathException ipe) {
                 throw new IOException(ipe);
             }
@@ -1555,7 +1668,7 @@ public class ZipFile implements ZipConstants, Closeable {
             try {
                 initCEN(-1);
                 byte[] buf = new byte[4];
-                readFullyAt(buf, 0, 4, 0);
+                readFullyAt(buf, 0, 4, key.off);
                 this.startsWithLoc = (LOCSIG(buf) == LOCSIG);
             } catch (IOException x) {
                 try {
@@ -1618,14 +1731,14 @@ public class ZipFile implements ZipConstants, Closeable {
          * was not found or an error occurred.
          */
         private End findEND() throws IOException {
-            long ziplen = zfile.length();
-            if (ziplen <= 0)
+            long zipend = key.off + key.len;
+            if (key.len <= 0)
                 zerror("zip file is empty");
             End end = new End();
             byte[] buf = new byte[READBLOCKSZ];
-            long minHDR = (ziplen - END_MAXLEN) > 0 ? ziplen - END_MAXLEN : 0;
+            long minHDR = ((zipend - END_MAXLEN) > 0 ? zipend - END_MAXLEN : 0);
             long minPos = minHDR - (buf.length - ENDHDR);
-            for (long pos = ziplen - buf.length; pos >= minPos; pos -= (buf.length - ENDHDR)) {
+            for (long pos = zipend - buf.length; pos >= minPos; pos -= (buf.length - ENDHDR)) {
                 int off = 0;
                 if (pos < 0) {
                     // Pretend there are some NUL bytes before start of file
@@ -1649,7 +1762,7 @@ public class ZipFile implements ZipConstants, Closeable {
                         end.cenoff = ENDOFF(endbuf);
                         end.endpos = pos + i;
                         int comlen = ENDCOM(endbuf);
-                        if (end.endpos + ENDHDR + comlen != ziplen) {
+                        if (end.endpos + ENDHDR + comlen != zipend) {
                             // ENDSIG matched, however the size of file comment in it does
                             // not match the real size. One "common" cause for this problem
                             // is some "extra" bytes are padded at the end of the zipfile.
@@ -1716,7 +1829,7 @@ public class ZipFile implements ZipConstants, Closeable {
             byte[] cen;
             if (knownTotal == -1) {
                 End end = findEND();
-                if (end.endpos == 0) {
+                if (end.endpos == key.off) {
                     locpos = 0;
                     total = 0;
                     entries = new int[0];

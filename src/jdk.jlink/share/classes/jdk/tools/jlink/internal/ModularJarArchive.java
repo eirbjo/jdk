@@ -25,6 +25,7 @@
 
 package jdk.tools.jlink.internal;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.zip.ZipEntry;
@@ -38,9 +39,9 @@ public class ModularJarArchive extends JarArchive {
 
     private static final String JAR_EXT = ".jar";
 
-    public ModularJarArchive(String mn, Path jmod, Runtime.Version version) {
+    public ModularJarArchive(String mn, URI jmod, Runtime.Version version) {
         super(mn, jmod, version);
-        String filename = Objects.requireNonNull(jmod.getFileName()).toString();
+        String filename = Objects.requireNonNull(jmod.getSchemeSpecificPart()).toString();
         if (!filename.endsWith(JAR_EXT)) {
             throw new UnsupportedOperationException("Unsupported format: " + filename);
         }

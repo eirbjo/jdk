@@ -52,14 +52,26 @@ public class URLJarFile extends JarFile {
     private Map<String, Attributes> superEntries;
 
     static JarFile getJarFile(URL url, URLJarFileCloseController closeController) throws IOException {
+        Runtime.Version version = "runtime".equals(url.getRef())
+                ? JarFile.runtimeVersion()
+                : JarFile.baseVersion();
         if (isFileURL(url)) {
-            Runtime.Version version = "runtime".equals(url.getRef())
-                    ? JarFile.runtimeVersion()
-                    : JarFile.baseVersion();
             return new URLJarFile(url, closeController, version);
+        } else if (isNestedJarFileURL(url)) {
+            URL jarFileURL = findJarFileURL(url);
+            File file = new File(ParseUtil.decode(jarFileURL.getFile()));
+            String entryName = findEntryName(url);
+            try (JarFile outer = new JarFile(file, true, JarFile.OPEN_READ)) {
+                return new URLJarFile(outer, entryName, closeController, version);
+            }
         } else {
             return retrieve(url, closeController);
         }
+    }
+
+    public URLJarFile(JarFile outer, String entryName, URLJarFileCloseController closeController, Runtime.Version version) throws IOException {
+        super(outer, entryName, true, version);
+        this.closeController = closeController;
     }
 
     private URLJarFile(File file, URLJarFileCloseController closeController, Runtime.Version version)
@@ -86,6 +98,12 @@ public class URLJarFile extends JarFile {
                 return true;
         }
         return false;
+    }
+
+    static boolean isNestedJarFileURL(URL url) {
+        return "jar".equals(url.getProtocol())
+                && url.getFile().startsWith("file:")
+                && url.getFile().contains("!/");
     }
 
     /**
@@ -223,6 +241,55 @@ public class URLJarFile extends JarFile {
             CodeSigner[] csg = je.getCodeSigners();
             return csg == null? null: csg.clone();
         }
+    }
+
+    public static String findEntryName(URL url) throws MalformedURLException {
+        String spec = url.getFile();
+        int separator = spec.indexOf("!/");
+        if (separator == -1) {
+            throw new MalformedURLException("no !/ found in url spec:" + spec);
+        }
+        int nextSeparator = spec.indexOf("!/", separator + 2);
+        if (nextSeparator != -1) {
+            separator = nextSeparator;
+        }
+        /* if ! is the last letter of the innerURL, entryName is null */
+        if (separator + 2 == spec.length()) {
+            return null;
+        } else {
+            return ParseUtil.decode(spec.substring(separator + 2, spec.length()));
+        }
+    }
+
+    public static URL findJarFileURL(URL url) throws MalformedURLException {
+        String spec = url.getFile();
+
+        int separator = spec.indexOf("!/");
+        /*
+         * REMIND: we don't handle nested JAR URLs
+         */
+        if (separator == -1) {
+            throw new MalformedURLException("no !/ found in url spec:" + spec);
+        }
+
+        int nextSeparator = spec.indexOf("!/", separator + 2);
+
+        @SuppressWarnings("deprecation")
+        var jarFileURL = nextSeparator == -1 ?
+                new URL(spec.substring(0, separator)) :
+                new URL("jar:" + spec.substring(0, nextSeparator));
+
+        /*
+         * The url argument may have had a runtime fragment appended, so
+         * we need to add a runtime fragment to the jarFileURL to enable
+         * runtime versioning when the underlying jar file is opened.
+         */
+        if ("runtime".equals(url.getRef())) {
+            @SuppressWarnings("deprecation")
+            var unused_ = jarFileURL = new URL(jarFileURL, "#runtime");
+        }
+
+        return jarFileURL;
     }
 
     public interface URLJarFileCloseController {

@@ -26,7 +26,7 @@ package jdk.tools.jlink.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Path;
+import java.net.URI;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -114,9 +114,9 @@ public interface Archive {
     String moduleName();
 
     /*
-     * Returns the path to this module's content
+     * Returns the URI to this module's content
      */
-    Path getPath();
+    URI getURI();
 
     /*
      * Stream of Entry.

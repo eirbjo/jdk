@@ -28,6 +28,7 @@ package jdk.tools.jlink.internal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -88,8 +89,8 @@ public class JmodArchive implements Archive {
     }
 
     @Override
-    public Path getPath() {
-        return file;
+    public URI getURI() {
+        return file.toUri();
     }
 
     @Override

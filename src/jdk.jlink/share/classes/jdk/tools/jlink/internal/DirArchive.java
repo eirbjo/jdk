@@ -27,6 +27,7 @@ package jdk.tools.jlink.internal;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -104,8 +105,8 @@ public class DirArchive implements Archive {
     }
 
     @Override
-    public Path getPath() {
-        return dirPath;
+    public URI getURI() {
+        return dirPath.toUri();
     }
 
     @Override

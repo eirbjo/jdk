@@ -39,18 +39,13 @@ import java.lang.module.ModuleDescriptor.Builder;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.net.URI;
+import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -62,6 +57,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
+import sun.net.www.ParseUtil;
 import sun.nio.cs.UTF_8;
 
 import jdk.internal.jmod.JmodFile;
@@ -235,10 +231,9 @@ public class ModulePath implements ModuleFinder {
             }
 
             // packaged or exploded module
-            ModuleReference mref = readModule(entry, attrs);
-            if (mref != null) {
-                String name = mref.descriptor().name();
-                return Map.of(name, mref);
+            Map<String, ModuleReference> moduleReferences = readModules(entry, attrs);
+            if (moduleReferences != null) {
+                return moduleReferences;
             }
 
             // not recognized
@@ -282,19 +277,21 @@ public class ModulePath implements ModuleFinder {
                     continue;
                 }
 
-                ModuleReference mref = readModule(entry, attrs);
+                Map<String, ModuleReference> moduleReferences = readModules(entry, attrs);
 
                 // module found
-                if (mref != null) {
-                    // can have at most one version of a module in the directory
-                    String name = mref.descriptor().name();
-                    ModuleReference previous = nameToReference.put(name, mref);
-                    if (previous != null) {
-                        String fn1 = fileName(mref);
-                        String fn2 = fileName(previous);
-                        throw new FindException("Two versions of module "
-                                                 + name + " found in " + dir
-                                                 + " (" + fn1 + " and " + fn2 + ")");
+                if (moduleReferences != null) {
+                    for (ModuleReference mref : moduleReferences.values()) {
+                        // can have at most one version of a module in the directory
+                        String name = mref.descriptor().name();
+                        ModuleReference previous = nameToReference.put(name, mref);
+                        if (previous != null) {
+                            String fn1 = fileName(mref);
+                            String fn2 = fileName(previous);
+                            throw new FindException("Two versions of module "
+                                    + name + " found in " + dir
+                                    + " (" + fn1 + " and " + fn2 + ")");
+                        }
                     }
                 }
             }
@@ -311,7 +308,7 @@ public class ModulePath implements ModuleFinder {
      * @throws IOException if an I/O error occurs
      * @throws FindException if an error occurs parsing its module descriptor
      */
-    private ModuleReference readModule(Path entry, BasicFileAttributes attrs)
+    private Map<String, ModuleReference> readModules(Path entry, BasicFileAttributes attrs)
         throws IOException
     {
         try {
@@ -389,13 +386,14 @@ public class ModulePath implements ModuleFinder {
      * @throws IOException
      * @throws InvalidModuleDescriptorException
      */
-    private ModuleReference readJMod(Path file) throws IOException {
+    private Map<String, ModuleReference> readJMod(Path file) throws IOException {
         try (JmodFile jf = new JmodFile(file)) {
             ModuleInfo.Attributes attrs;
             try (InputStream in = jf.getInputStream(Section.CLASSES, MODULE_INFO)) {
                 attrs  = ModuleInfo.read(in, () -> jmodPackages(jf));
             }
-            return ModuleReferences.newJModModule(attrs, file);
+            ModuleReference mref = ModuleReferences.newJModModule(attrs, file);
+            return Map.of(mref.descriptor().name(), mref);
         }
     }
 
@@ -629,34 +627,73 @@ public class ModulePath implements ModuleFinder {
      * @throws FindException
      * @throws InvalidModuleDescriptorException
      */
-    private ModuleReference readJar(Path file) throws IOException {
+    private Map<String, ModuleReference> readJar(Path file) throws IOException {
+        Map<String, ModuleReference> moduleReferences = new HashMap<>();
+
         try (JarFile jf = new JarFile(file.toFile(),
                                       true,               // verify
                                       ZipFile.OPEN_READ,
                                       releaseVersion))
         {
-            ModuleInfo.Attributes attrs;
-            JarEntry entry = jf.getJarEntry(MODULE_INFO);
-            if (entry == null) {
+            ModuleInfo.Attributes attrs = readAttrs(jf);
+            ModuleReference mref = ModuleReferences.newJarModule(attrs, patcher, file.toUri(),
+                    () -> ModuleReferences.JarModuleReader.newJarFile(file));
+            moduleReferences.put(mref.descriptor().name(), mref);
 
-                // no module-info.class so treat it as automatic module
-                try {
-                    ModuleDescriptor md = deriveModuleDescriptor(jf);
-                    attrs = new ModuleInfo.Attributes(md, null, null, null);
-                } catch (RuntimeException e) {
-                    throw new FindException("Unable to derive module descriptor for "
-                                            + jf.getName(), e);
-                }
-
-            } else {
-                attrs = ModuleInfo.read(jf.getInputStream(entry),
-                                        () -> jarPackages(jf));
-            }
-
-            return ModuleReferences.newJarModule(attrs, patcher, file);
+            addModulePath(file, jf, moduleReferences);
         } catch (ZipException e) {
             throw new FindException("Error reading " + file, e);
         }
+
+        return moduleReferences;
+    }
+
+    private void addModulePath(Path file, JarFile jf, Map<String, ModuleReference> moduleReferences) throws IOException {
+        Manifest manifest = jf.getManifest();
+        if (manifest != null) {
+            String value = manifest.getMainAttributes().getValue("Module-Path");
+            if (value != null) {
+                StringTokenizer st = new StringTokenizer(value);
+                while (st.hasMoreTokens()) {
+                    String path = st.nextToken();
+                    try (JarFile nested = new JarFile(jf, path, true, releaseVersion)) {
+
+                        ModuleInfo.Attributes attrs = readAttrs(nested);
+                        URI uri = URI.create("jar:" + file.toAbsolutePath().toString() + "!/" + ParseUtil.encodePath(path, false));
+                        ModuleReference mref = ModuleReferences.newJarModule(attrs, patcher, uri, () -> {
+                            try (ZipFile outer = new ZipFile(file.toFile())) {
+                                return ModuleReferences.JarModuleReader.newNestedJarFile(outer, path);
+                            } catch (IOException e) {
+                                throw new FindException("Error reading " + uri, e);
+                            }
+
+                        });
+                        moduleReferences.put(mref.descriptor().name(), mref);
+                    }
+                }
+            }
+        }
+    }
+
+    private ModuleInfo.Attributes readAttrs(JarFile jf) throws IOException {
+        ModuleInfo.Attributes attrs;
+        JarEntry entry = jf.getJarEntry(MODULE_INFO);
+        if (entry == null) {
+
+            // no module-info.class so treat it as automatic module
+            try {
+                ModuleDescriptor md = deriveModuleDescriptor(jf);
+                attrs = new ModuleInfo.Attributes(md, null, null, null);
+            } catch (RuntimeException e) {
+                throw new FindException("Unable to derive module descriptor for "
+                                        + jf.getName(), e);
+            }
+
+        } else {
+            attrs = ModuleInfo.read(jf.getInputStream(entry),
+                                    () -> jarPackages(jf));
+        }
+        return attrs;
     }
 
 
@@ -682,7 +719,7 @@ public class ModulePath implements ModuleFinder {
      * @throws IOException
      * @throws InvalidModuleDescriptorException
      */
-    private ModuleReference readExplodedModule(Path dir) throws IOException {
+    private Map<String, ModuleReference> readExplodedModule(Path dir) throws IOException {
         Path mi = dir.resolve(MODULE_INFO);
         ModuleInfo.Attributes attrs;
         try (InputStream in = Files.newInputStream(mi)) {
@@ -692,7 +729,8 @@ public class ModulePath implements ModuleFinder {
             // for now
             return null;
         }
-        return ModuleReferences.newExplodedModule(attrs, patcher, dir);
+        ModuleReference mref = ModuleReferences.newExplodedModule(attrs, patcher, dir);
+        return Map.of(mref.descriptor().name(), mref);
     }
 
     /**

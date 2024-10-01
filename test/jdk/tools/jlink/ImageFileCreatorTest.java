@@ -26,6 +26,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -77,7 +78,7 @@ public class ImageFileCreatorTest {
         }
 
         @Override
-        public Path getPath() {
+        public URI getURI() {
             return null;
         }
 
