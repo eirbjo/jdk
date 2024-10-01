@@ -16,7 +16,7 @@ JAR file bundles.
 3. Enhance the `jar` URL scheme to support nested URLs such as `jar:file:single.jar!/library.jar!/Library.class`
 4. Enhance `java.net.URLClassLoader`'s parsing of the `Class-Path` JAR manifest
    attribute to support referring to nested JAR files
-5. Enhance `java.lang.ModuleFinder` to find modules located in nested JARs packaged within a larger module JAR
+5. Enhance `java.lang.ModuleFinder` to find modules located in nested JAR modules packaged within larger module JAR
 6. Enhance `jlink` to support builing runtime images from single-jar modules on the `--module-path` 
 
 ## Non-Goals
