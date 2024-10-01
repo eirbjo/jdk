@@ -21,7 +21,7 @@ JAR file bundles.
 
 ## Non-Goals
 
-1. It is not to change `javac` to allow nested jar files being used as libraries on the 
+1. It is not a goal to change `javac` to allow nested jar files being used as libraries on the 
    class or module path.
 2. It is not a goal to support arbitrary levels of nesting in `URLClassLoader`, 
    `ModuleFinder` or `jlink`. A single level of nesting is sufficient to support the 
