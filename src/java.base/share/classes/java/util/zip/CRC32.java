@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1996, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1996, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -60,6 +60,16 @@ public class CRC32 implements Checksum {
     @Override
     public void update(int b) {
         crc = update(crc, b);
+    }
+
+    /**
+     * Updates the CRC-32 checksum with the specified array of bytes
+     *
+     * @since 24
+     */
+    @Override
+    public void update(byte[] b) {
+        crc = updateBytes0(crc, b, 0, b.length);
     }
 
     /**
