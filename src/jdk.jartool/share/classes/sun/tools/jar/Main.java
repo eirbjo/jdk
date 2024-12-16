@@ -183,6 +183,9 @@ public class Main {
     /* Date option for entry timestamps resolved to UTC Local time */
     LocalDateTime date;
 
+    /* File extensions which should be store without compressed */
+    Set<String> noCompressExt;
+
     /**
      * If true, maintain compatibility with JDK releases prior to 6.0 by
      * timestamping extracted files with the time at which they are extracted.
@@ -1252,7 +1255,7 @@ public class Main {
             e.setMethod(ZipEntry.STORED);
             e.setSize(0);
             e.setCrc(0);
-        } else if (flag0) {
+        } else if (flag0 || isNoCompressExt(file)) {
             crc32File(e, file);
         }
         zos.putNextEntry(e);
@@ -1276,6 +1279,17 @@ public class Main {
                 output(getMsg("out.stored"));
             }
         }
+    }
+
+    private boolean isNoCompressExt(File file) {
+        if (noCompressExt != null) {
+            for (String ext : noCompressExt) {
+                if (file.getName().endsWith(ext)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

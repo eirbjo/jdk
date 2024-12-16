@@ -199,6 +199,27 @@ class GNUStyleOptions {
                     jartool.flag0 = true;
                 }
             },
+            new Option(true, true, OptionType.CREATE_UPDATE_INDEX, "--no-compress-ext") {
+                void process(Main jartool, String opt, String arg) throws BadArgs {
+                    if (arg == null) {
+                        return;
+                    }
+
+                    String[] exts = arg.split(":");
+                    if (exts == null) {
+                        return;
+                    }
+
+                    for (String ext : exts) {
+                        if (ext != null && !ext.isEmpty()) {
+                            if (jartool.noCompressExt == null) {
+                                jartool.noCompressExt = new HashSet<>();
+                            }
+                            jartool.noCompressExt.add(ext);
+                        }
+                    }
+                }
+            },
             new Option(true, OptionType.CREATE_UPDATE_INDEX, "--date") {
                 void process(Main jartool, String opt, String arg) throws BadArgs {
                     try {
