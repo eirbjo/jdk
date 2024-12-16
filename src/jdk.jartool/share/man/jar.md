@@ -178,7 +178,13 @@ or `--create`) the update (`-u` or `--update` ) and the generate-index (`-i` or
 `--generate-index=`*FILE*) main operation modes:
 
 `-0` or `--no-compress`
-:   Stores without using ZIP compression.
+:   Stores all files without using ZIP compression.
+
+`--no-compress-ext=`*EXT*
+:   Store files with selected extensions without using ZIP compression. *EXT* 
+    may specify a single file extension or multiple extensions separated by 
+    colon, e.g "--no-compress-ext=.jpg:.png:.gz". 
+    
 
 `--date=`*TIMESTAMP*
 :   The timestamp in ISO-8601 extended offset date-time with optional time-zone
