@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1994, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1994, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -33,6 +33,8 @@ import java.io.IOException;
 import sun.net.www.ParseUtil;
 import java.io.File;
 
+import static sun.net.www.protocol.file.FileURLConnection.isLocalFileURL;
+
 /**
  * Open an file input stream given a URL.
  * @author      James Gosling
@@ -64,8 +66,7 @@ public class Handler extends URLStreamHandler {
     public URLConnection openConnection(URL u, Proxy p)
            throws IOException {
         String host = u.getHost();
-        if (host == null || host.isEmpty() || host.equals("~") ||
-            host.equalsIgnoreCase("localhost")) {
+        if (isLocalFileURL(u)) {
             File file = new File(ParseUtil.decode(u.getPath()));
             return createFileURLConnection(u, file);
         }

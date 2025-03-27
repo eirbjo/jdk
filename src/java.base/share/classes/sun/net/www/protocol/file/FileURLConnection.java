@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1995, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -220,5 +220,39 @@ public class FileURLConnection extends URLConnection {
             }
         }
         return permission;
+    }
+
+    /**
+     * {@return true if the given URL is a file URL where the host part indicates a local file}
+     * @param url the URL to test
+     */
+    public static boolean isLocalFileURL(URL url) {
+        return isFileURL(url) && isLocalHost(url);
+    }
+
+    /**
+     * {@return true if the given url is a file where the host part indicates a non-local file}
+     * @param url the URL to test
+     */
+    public static boolean isNonLocalFileURL(URL url) {
+        return isFileURL(url) && !isLocalHost(url);
+    }
+
+    /**
+     * {@return true if the URL's host component is unspecified or equal to 'localhost' ignoring case}
+     * @param url the URL to test
+     */
+    private static boolean isLocalHost(URL url) {
+        String host = url.getHost();
+        return host == null || host.isEmpty() || host.equals("~") ||
+                host.equalsIgnoreCase("localhost");
+    }
+
+    /**
+     * True if the URL's protocol equals 'file' ignoring case
+     * @param url the URL to test
+     */
+    private static boolean isFileURL(URL url) {
+        return url.getProtocol().equalsIgnoreCase("file");
     }
 }
