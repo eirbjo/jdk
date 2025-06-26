@@ -94,7 +94,7 @@ public class JLink20000Packages {
             // Write the main class
             out.putNextEntry(new JarEntry(testPackage +"/" + testClass +".class"));
             out.write(generateMainClass());
-            packageNames.add("testpackage");
+            packageNames.add(testPackage);
 
             // Write the module descriptor
             mdesc.packages(packageNames);
