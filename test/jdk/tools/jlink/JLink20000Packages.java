@@ -57,16 +57,18 @@ import static java.lang.constant.ConstantDescs.CD_void;
  *          jdk.jlink/jdk.tools.jmod
  *          jdk.jlink/jdk.tools.jimage
  * @build tests.*
- * @run main/othervm -Xlog:init=debug JLink20000Packages
+ * @run main/othervm -Xlog:init=debug -XX:+UnlockDiagnosticVMOptions -XX:+BytecodeVerificationLocal JLink20000Packages
  */
 public class JLink20000Packages {
 
-    private static final ClassDesc CD_System = ClassDesc.of("java.lang.System");
-    private static final ClassDesc CD_PrintStream = ClassDesc.of("java.io.PrintStream");
-    private static final MethodTypeDesc MTD_void_String = MethodTypeDesc.of(ConstantDescs.CD_void, ConstantDescs.CD_String);
+    // Name of the module used in this test
+    private static final String moduleName = "bug8321413x";
+    // Package name of the module main class
+    private static final String testPackage = "testpackage";
+    // Name of the module main class
+    private static final String testClass = "JLink20000PackagesTest";
 
     public static void main(String[] args) throws Exception {
-        String moduleName = "bug8321413x";
         Path src = Paths.get(moduleName);
         Files.createDirectories(src);
         Path jarPath = src.resolve(moduleName +".jar");
@@ -90,7 +92,7 @@ public class JLink20000Packages {
             }
 
             // Write the main class
-            out.putNextEntry(new JarEntry("testpackage/JLink20000PackagesTest.class"));
+            out.putNextEntry(new JarEntry(testPackage +"/" + testClass +".class"));
             out.write(generateMainClass());
             packageNames.add("testpackage");
 
@@ -111,7 +113,9 @@ public class JLink20000Packages {
         Path bin = binDir.resolve("java");
 
         ProcessBuilder processBuilder = new ProcessBuilder(bin.toString(),
-                "-m", moduleName + "/testpackage.JLink20000PackagesTest");
+                "-XX:+UnlockDiagnosticVMOptions",
+                "-XX:+BytecodeVerificationLocal",
+                "-m", moduleName + "/" + testPackage +"." + testClass);
         processBuilder.inheritIO();
         processBuilder.directory(binDir.toFile());
         Process process = processBuilder.start();
@@ -121,14 +125,11 @@ public class JLink20000Packages {
     }
 
     private static byte[] generateMainClass() {
-        return ClassFile.of().build(ClassDesc.of("testpackage", "JLink20000PackagesTest"),
+        return ClassFile.of().build(ClassDesc.of(testPackage, testClass),
                 cb -> {
                     cb.withMethod("main", MethodTypeDesc.of(CD_void, CD_String.arrayType()),
                             ACC_PUBLIC | ACC_STATIC, mb -> {
-                                mb.withCode(cob -> cob.getstatic(CD_System, "out", CD_PrintStream)
-                                        .ldc("JLink20000PackagesTest started.")
-                                        .invokevirtual(CD_PrintStream, "println", MTD_void_String)
-                                        .return_()
+                                mb.withCode(cob -> cob.return_()
                                 );
                             });
                 });
