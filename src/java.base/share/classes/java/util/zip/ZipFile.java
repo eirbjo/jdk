@@ -37,6 +37,7 @@ import java.nio.charset.Charset;
 import java.nio.file.InvalidPathException;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.Files;
+import java.nio.file.attribute.FileTime;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
@@ -1444,9 +1445,13 @@ public class ZipFile implements ZipConstants, Closeable {
          * The unique combination of these components identifies a Source of a ZipFile.
          */
         private static class Key {
-            private final BasicFileAttributes attrs;
+            // File path of the ZIP file
             private final File file;
-            // the Charset that was provided when constructing the ZipFile instance
+            // Time of last modification of the file
+            private final FileTime lastModifiedTime;
+            // BasicFileAttributes.fileKey() when available, otherwise the File path
+            private final Object fileKeyOrPath;
+            // Charset provided when constructing the ZipFile instance
             private final Charset charset;
 
             /**
@@ -1457,35 +1462,31 @@ public class ZipFile implements ZipConstants, Closeable {
              * @param charset the Charset that was provided when constructing the ZipFile instance
              */
             public Key(File file, BasicFileAttributes attrs, Charset charset) {
-                this.attrs = attrs;
                 this.file = file;
+
+                // Prefer file key when available, otherwise use File path
+                Object fileKey = attrs.fileKey();
+                this.fileKeyOrPath = fileKey != null ? fileKey : file;
+
+                this.lastModifiedTime = attrs.lastModifiedTime();
                 this.charset = charset;
             }
 
             @Override
             public int hashCode() {
-                long t = charset.hashCode();
-                t += attrs.lastModifiedTime().toMillis();
-                Object fk = attrs.fileKey();
-                return Long.hashCode(t) +
-                        (fk != null ? fk.hashCode() : file.hashCode());
+                int h = charset.hashCode();
+                h = h * 31 + lastModifiedTime.hashCode();
+                h = h * 31 + fileKeyOrPath.hashCode();
+                return h;
             }
 
             @Override
             public boolean equals(Object obj) {
-                if (obj instanceof Key key) {
-                    if (!charset.equals(key.charset)) {
-                        return false;
-                    }
-                    if (!attrs.lastModifiedTime().equals(key.attrs.lastModifiedTime())) {
-                        return false;
-                    }
-                    Object fk = attrs.fileKey();
-                    if (fk != null) {
-                        return fk.equals(key.attrs.fileKey());
-                    } else {
-                        return file.equals(key.file);
-                    }
+                if (obj instanceof Key key
+                        && charset.equals(key.charset)
+                        && lastModifiedTime.equals(key.lastModifiedTime)
+                        && fileKeyOrPath.equals(key.fileKeyOrPath)) {
+                    return true;
                 }
                 return false;
             }
