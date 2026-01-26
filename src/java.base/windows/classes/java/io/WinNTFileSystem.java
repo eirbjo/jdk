@@ -509,6 +509,11 @@ final class WinNTFileSystem extends FileSystem {
     private native long getLastModifiedTime0(File f);
 
     @Override
+    public Object fileKey(File f) {
+        return null;
+    }
+
+    @Override
     public long getLength(File f) {
         return getLength0(getFileForWin32Calls(f));
     }
