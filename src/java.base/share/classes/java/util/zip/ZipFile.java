@@ -1444,8 +1444,9 @@ public class ZipFile implements ZipConstants, Closeable {
          * The unique combination of these components identifies a Source of a ZipFile.
          */
         private static class Key {
-            private final BasicFileAttributes attrs;
             private final File file;
+            private final long lastModifiedTime;
+            private final Object fileKey;
             // the Charset that was provided when constructing the ZipFile instance
             private final Charset charset;
 
@@ -1456,17 +1457,18 @@ public class ZipFile implements ZipConstants, Closeable {
              * @param attrs   the attributes of the ZIP file
              * @param charset the Charset that was provided when constructing the ZipFile instance
              */
-            public Key(File file, BasicFileAttributes attrs, Charset charset) {
-                this.attrs = attrs;
+            public Key(File file, Charset charset) {
                 this.file = file;
+                this.lastModifiedTime = file.lastModified();
+                this.fileKey = file.fileKey();
                 this.charset = charset;
             }
 
             @Override
             public int hashCode() {
                 long t = charset.hashCode();
-                t += attrs.lastModifiedTime().toMillis();
-                Object fk = attrs.fileKey();
+                t += lastModifiedTime;
+                Object fk = fileKey;
                 return Long.hashCode(t) +
                         (fk != null ? fk.hashCode() : file.hashCode());
             }
@@ -1477,12 +1479,12 @@ public class ZipFile implements ZipConstants, Closeable {
                     if (!charset.equals(key.charset)) {
                         return false;
                     }
-                    if (!attrs.lastModifiedTime().equals(key.attrs.lastModifiedTime())) {
+                    if (lastModifiedTime != key.lastModifiedTime) {
                         return false;
                     }
-                    Object fk = attrs.fileKey();
+                    Object fk = fileKey;
                     if (fk != null) {
-                        return fk.equals(key.attrs.fileKey());
+                        return fk.equals(key.fileKey);
                     } else {
                         return file.equals(key.file);
                     }
@@ -1491,19 +1493,11 @@ public class ZipFile implements ZipConstants, Closeable {
             }
         }
         private static final HashMap<Key, Source> files = new HashMap<>();
-        /**
-         * Use the platform's default file system to avoid
-         * issues when the VM is configured to use a custom file system provider.
-         */
-        private static final java.nio.file.FileSystem builtInFS =
-                DefaultFileSystemProvider.theFileSystem();
 
         static Source get(File file, boolean toDelete, ZipCoder zipCoder) throws IOException {
             final Key key;
             try {
-                key = new Key(file,
-                        Files.readAttributes(builtInFS.getPath(file.getPath()),
-                                BasicFileAttributes.class), zipCoder.charset());
+                key = new Key(file, zipCoder.charset());
             } catch (InvalidPathException ipe) {
                 throw new IOException(ipe);
             }

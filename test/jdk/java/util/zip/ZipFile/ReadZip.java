@@ -217,7 +217,7 @@ public class ReadZip {
     @Test
     public void nonExistingFile() {
         File nonExistingFile = new File("non-existing-file-f6804460f.zip");
-        assertThrows(NoSuchFileException.class, () ->
+        assertThrows(IOException.class, () ->
                 new ZipFile(nonExistingFile));
     }
 

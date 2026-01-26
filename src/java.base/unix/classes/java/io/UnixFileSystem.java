@@ -25,6 +25,7 @@
 
 package java.io;
 
+import java.util.Objects;
 import java.util.Properties;
 import jdk.internal.util.StaticProperty;
 
@@ -199,6 +200,39 @@ final class UnixFileSystem extends FileSystem {
         return getLastModifiedTime0(getFileForSysCalls(f));
     }
     private native long getLastModifiedTime0(File f);
+
+    static class UnixFileKey {
+        private final long dev, inode;
+
+        UnixFileKey(long dev, long inode) {
+            this.dev = dev;
+            this.inode = inode;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            return o instanceof UnixFileKey other
+                    && dev == other.dev
+                    && inode == other.inode;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(dev) + Long.hashCode(inode);
+        }
+    }
+
+    @Override
+    public Object fileKey(File f) {
+        long[] finfo = new long[2];
+        getFileKey0(getFileForSysCalls(f), finfo);
+        return new UnixFileKey(finfo[0], finfo[1]);
+    }
+
+    private native void getFileKey0(File f, long[] finfo);
 
     @Override
     public long getLength(File f) {

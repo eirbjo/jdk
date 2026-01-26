@@ -233,6 +233,24 @@ Java_java_io_UnixFileSystem_getLastModifiedTime0(JNIEnv *env, jobject this,
     return rv;
 }
 
+JNIEXPORT void JNICALL
+Java_java_io_UnixFileSystem_getFileKey0(JNIEnv *env, jobject this,
+                                                 jobject file,
+                                                 jlongArray finfo)
+{
+    WITH_FIELD_PLATFORM_STRING(env, file, ids.path, path) {
+        struct stat sb;
+        jlong deviceAndInode[2];
+        if (stat(path, &sb) == 0) {
+            deviceAndInode[0] = (jlong)sb.st_dev;
+            deviceAndInode[1] = (jlong)sb.st_ino;
+            (*env)->SetLongArrayRegion(env, finfo, 0, 2, deviceAndInode);
+        } else {
+            JNU_ThrowIOExceptionWithLastError(env, "stat failed");
+        }
+    } END_PLATFORM_STRING(env, path);
+}
+
 
 JNIEXPORT jlong JNICALL
 Java_java_io_UnixFileSystem_getLength0(JNIEnv *env, jobject this,

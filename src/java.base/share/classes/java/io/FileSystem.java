@@ -165,6 +165,31 @@ abstract class FileSystem {
      * some other I/O error occurs.
      */
     public abstract long getLastModifiedTime(File f);
+    /**
+     * Returns an object that uniquely identifies the file, or {@code
+     * null} if a file key is not available. On some platforms or file systems
+     * it is possible to use an identifier, or a combination of identifiers to
+     * uniquely identify a file. Such identifiers are important for operations
+     * such as file tree traversal in file systems that support <a
+     * href="../package-summary.html#links">symbolic links</a> or file systems
+     * that allow a file to be an entry in more than one directory. On UNIX file
+     * systems, for example, the <em>device ID</em> and <em>inode</em> are
+     * commonly used for such purposes.
+     *
+     * <p> The file key returned by this method can only be guaranteed to be
+     * unique if the file system and files remain static. Whether a file system
+     * re-uses identifiers after a file is deleted is implementation dependent and
+     * therefore unspecified.
+     *
+     * <p> File keys returned by this method can be compared for equality and are
+     * suitable for use in collections. If the file system and files remain static,
+     * and two files are the {@link java.nio.file.Files#isSameFile same} with
+     * non-{@code null} file keys, then their file keys are equal.
+     *
+     * @return an object that uniquely identifies the given file, or {@code null}
+     *
+     */
+    public abstract Object fileKey(File f);
 
     /**
      * Return the length in bytes of the file denoted by the given abstract
