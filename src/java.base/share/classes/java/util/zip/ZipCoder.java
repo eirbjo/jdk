@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2009, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -82,20 +82,41 @@ class ZipCoder {
          */
         NO_MATCH = 2;
 
-    String toString(byte[] ba, int off, int length) {
-        try {
-            return decoder().decode(ByteBuffer.wrap(ba, off, length)).toString();
-        } catch (CharacterCodingException x) {
-            throw new IllegalArgumentException(x);
-        }
-    }
-
     String toString(byte[] ba, int length) {
         return toString(ba, 0, length);
     }
 
     String toString(byte[] ba) {
         return toString(ba, 0, ba.length);
+    }
+
+    static String toStringUTF8(byte[] ba, int len) {
+        return UTF8.toString(ba, 0, len);
+    }
+
+    // Hash function equivalent of checkedHash for String inputs
+    static int hash(String name) {
+        int hsh = name.hashCode();
+        int len = name.length();
+        if (len > 0 && name.charAt(len - 1) != '/') {
+            hsh = hsh * 31 + '/';
+        }
+        return hsh;
+    }
+
+    /**
+     * {@return the {@link Charset} used by this {@code ZipCoder}}
+     */
+    final Charset charset() {
+        return this.cs;
+    }
+
+    String toString(byte[] ba, int off, int length) {
+        try {
+            return decoder().decode(ByteBuffer.wrap(ba, off, length)).toString();
+        } catch (CharacterCodingException x) {
+            throw new IllegalArgumentException(x);
+        }
     }
 
     byte[] getBytes(String s) {
@@ -112,10 +133,6 @@ class ZipCoder {
         } catch (CharacterCodingException x) {
             throw new IllegalArgumentException(x);
         }
-    }
-
-    static String toStringUTF8(byte[] ba, int len) {
-        return UTF8.toString(ba, 0, len);
     }
 
     boolean isUTF8() {
@@ -151,16 +168,6 @@ class ZipCoder {
         return h;
     }
 
-    // Hash function equivalent of checkedHash for String inputs
-    static int hash(String name) {
-        int hsh = name.hashCode();
-        int len = name.length();
-        if (len > 0 && name.charAt(len - 1) != '/') {
-            hsh = hsh * 31 + '/';
-        }
-        return hsh;
-    }
-
     private final Charset cs;
     protected CharsetDecoder dec;
     private CharsetEncoder enc;
@@ -176,13 +183,6 @@ class ZipCoder {
               .onUnmappableCharacter(CodingErrorAction.REPORT);
         }
         return dec;
-    }
-
-    /**
-     * {@return the {@link Charset} used by this {@code ZipCoder}}
-     */
-    final Charset charset() {
-        return this.cs;
     }
 
     private CharsetEncoder encoder() {
