@@ -33,6 +33,7 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.io.UncheckedIOException;
 import java.lang.ref.Cleaner.Cleanable;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.file.InvalidPathException;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -270,7 +271,7 @@ public class ZipFile implements ZipConstants, Closeable {
             // the ZIP file comment, return null;
             try {
                 return zipCoder.toString(res.zsrc.comment);
-            } catch (IllegalArgumentException iae) {
+            } catch (CharacterCodingException ignored) {
                 return null;
             }
         }
@@ -595,7 +596,11 @@ public class ZipFile implements ZipConstants, Closeable {
         byte[] cen = res.zsrc.cen;
         int nlen = CENNAM(cen, pos);
         ZipCoder zc = zipCoderFor(cen, pos, zipCoder);
-        return zc.toString(cen, pos + CENHDR, nlen);
+        try {
+            return zc.toString(cen, pos + CENHDR, nlen);
+        } catch (CharacterCodingException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     /*
@@ -667,7 +672,11 @@ public class ZipFile implements ZipConstants, Closeable {
         if (clen != 0) {
             int start = pos + CENHDR + nlen + elen;
             ZipCoder zc = zipCoderFor(cen, pos, zipCoder);
-            e.comment = zc.toString(cen, start, clen);
+            try {
+                e.comment = zc.toString(cen, start, clen);
+            } catch (CharacterCodingException ex) {
+                throw new IllegalArgumentException(ex);
+            }
         }
         lastEntryName = e.name;
         lastEntryPos = pos;
@@ -1256,7 +1265,7 @@ public class ZipFile implements ZipConstants, Closeable {
                     int start = entryPos + nlen + elen;
                     zipCoder.toString(cen, start, clen);
                 }
-            } catch (Exception e) {
+            } catch (CharacterCodingException e) {
                 zerror("invalid CEN header (bad entry name or comment)");
             }
             return nlen;
@@ -1814,7 +1823,7 @@ public class ZipFile implements ZipConstants, Closeable {
                                 if (metaVersions == null)
                                     metaVersions = new HashMap<>();
                                 metaVersions.computeIfAbsent(hashCode, _ -> new BitSet()).set(version);
-                            } catch (Exception e) {
+                            } catch (CharacterCodingException e) {
                                 zerror("invalid CEN header (bad entry name or comment)");
                             }
                         }

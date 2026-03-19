@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PushbackInputStream;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.util.Objects;
 
@@ -520,7 +521,7 @@ public class ZipInputStream extends InflaterInputStream implements ZipConstants 
             entryName = ((flag & USE_UTF8) != 0) ?
                     ZipCoder.toStringUTF8(b, len)
                     : zc.toString(b, len);
-        } catch (Exception ex) {
+        } catch (CharacterCodingException ex) {
             throw (ZipException) new ZipException(
                     "invalid LOC header (bad entry name)").initCause(ex);
         }

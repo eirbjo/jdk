@@ -82,39 +82,31 @@ class ZipCoder {
          */
         NO_MATCH = 2;
 
-    String toString(byte[] ba, int off, int length) {
-        try {
-            return decoder().decode(ByteBuffer.wrap(ba, off, length)).toString();
-        } catch (CharacterCodingException x) {
-            throw new IllegalArgumentException(x);
-        }
+    String toString(byte[] ba, int off, int length) throws CharacterCodingException {
+        return decoder().decode(ByteBuffer.wrap(ba, off, length)).toString();
     }
 
-    String toString(byte[] ba, int length) {
+    String toString(byte[] ba, int length) throws CharacterCodingException {
         return toString(ba, 0, length);
     }
 
-    String toString(byte[] ba) {
+    String toString(byte[] ba) throws CharacterCodingException  {
         return toString(ba, 0, ba.length);
     }
 
-    byte[] getBytes(String s) {
-        try {
-            ByteBuffer bb = encoder().encode(CharBuffer.wrap(s));
-            int pos = bb.position();
-            int limit = bb.limit();
-            if (bb.hasArray() && pos == 0 && limit == bb.capacity()) {
-                return bb.array();
-            }
-            byte[] bytes = new byte[bb.limit() - bb.position()];
-            bb.get(bytes);
-            return bytes;
-        } catch (CharacterCodingException x) {
-            throw new IllegalArgumentException(x);
+    byte[] getBytes(String s) throws CharacterCodingException {
+        ByteBuffer bb = encoder().encode(CharBuffer.wrap(s));
+        int pos = bb.position();
+        int limit = bb.limit();
+        if (bb.hasArray() && pos == 0 && limit == bb.capacity()) {
+            return bb.array();
         }
+        byte[] bytes = new byte[bb.limit() - bb.position()];
+        bb.get(bytes);
+        return bytes;
     }
 
-    static String toStringUTF8(byte[] ba, int len) {
+    static String toStringUTF8(byte[] ba, int len) throws CharacterCodingException {
         return UTF8.toString(ba, 0, len);
     }
 
@@ -128,10 +120,8 @@ class ZipCoder {
     // normalization ensures we can simplify and speed up lookups.
     //
     // Does encoding error checking and hashing in a single pass for efficiency.
-    // On an error, this function will throw CharacterCodingException while the
-    // UTF8ZipCoder override will throw IllegalArgumentException, so we declare
-    // throws Exception to keep things simple.
-    int checkedHash(byte[] a, int off, int len) throws Exception {
+    // On an error, this function will throw CharacterCodingException.
+    int checkedHash(byte[] a, int off, int len) throws CharacterCodingException {
         if (len == 0) {
             return 0;
         }
@@ -228,17 +218,21 @@ class ZipCoder {
      *
      */
     byte compare(String str, byte[] b, int off, int len, boolean matchDirectory) {
-        String decoded = toString(b, off, len);
-        if (decoded.startsWith(str)) {
-            if (decoded.length() == str.length()) {
-                return EXACT_MATCH;
-            } else if (matchDirectory
-                && decoded.length() == str.length() + 1
-                && decoded.endsWith("/") ) {
-                return DIRECTORY_MATCH;
+        try {
+            String decoded = toString(b, off, len);
+            if (decoded.startsWith(str)) {
+                if (decoded.length() == str.length()) {
+                    return EXACT_MATCH;
+                } else if (matchDirectory
+                    && decoded.length() == str.length() + 1
+                    && decoded.endsWith("/") ) {
+                    return DIRECTORY_MATCH;
+                }
             }
+            return NO_MATCH;
+        } catch (CharacterCodingException e) {
+            return NO_MATCH;
         }
-        return NO_MATCH;
     }
     static final class UTF8ZipCoder extends ZipCoder {
 
@@ -252,27 +246,19 @@ class ZipCoder {
         }
 
         @Override
-        String toString(byte[] ba, int off, int length) {
-            try {
-                // Copy subrange for exclusive use by the string being created
-                byte[] bytes = Arrays.copyOfRange(ba, off, off + length);
-                return JLA.uncheckedNewStringOrThrow(bytes, StandardCharsets.UTF_8);
-            } catch (CharacterCodingException cce) {
-                throw new IllegalArgumentException(cce);
-            }
+        String toString(byte[] ba, int off, int length) throws CharacterCodingException {
+            // Copy subrange for exclusive use by the string being created
+            byte[] bytes = Arrays.copyOfRange(ba, off, off + length);
+            return JLA.uncheckedNewStringOrThrow(bytes, StandardCharsets.UTF_8);
         }
 
         @Override
-        byte[] getBytes(String s) {
-            try {
-                return JLA.getBytesUTF8OrThrow(s);
-            } catch (CharacterCodingException cce) {
-                throw new IllegalArgumentException(cce);
-            }
+        byte[] getBytes(String s) throws CharacterCodingException {
+            return JLA.getBytesUTF8OrThrow(s);
         }
 
         @Override
-        int checkedHash(byte[] a, int off, int len) throws Exception {
+        int checkedHash(byte[] a, int off, int len) throws CharacterCodingException {
             if (len == 0) {
                 return 0;
             }

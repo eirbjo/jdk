@@ -27,6 +27,7 @@ package java.util.zip;
 
 import java.io.OutputStream;
 import java.io.IOException;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.util.Objects;
 import java.util.Vector;
@@ -148,7 +149,11 @@ public class ZipOutputStream extends DeflaterOutputStream implements ZipConstant
     public void setComment(String comment) {
         byte[] bytes = null;
         if (comment != null) {
-            bytes = zc.getBytes(comment);
+            try {
+                bytes = zc.getBytes(comment);
+            } catch (CharacterCodingException e) {
+                throw new IllegalArgumentException("Unmappable character in ZIP file comment", e);
+            }
             if (bytes.length > 0xffff) {
                 throw new IllegalArgumentException("ZIP file comment too long");
             }
